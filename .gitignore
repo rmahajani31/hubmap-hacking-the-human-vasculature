@@ -3,3 +3,4 @@
 *.jsonl
 *.png
 *.jpg
+.ipynb_checkpoints/
