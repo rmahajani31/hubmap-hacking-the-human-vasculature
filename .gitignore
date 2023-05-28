@@ -4,5 +4,6 @@
 *.png
 *.jpg
 *.zip
+*.pem
 .ipynb_checkpoints
 models/
