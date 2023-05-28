@@ -26,15 +26,11 @@ print(f'Device: {DEVICE}')
 
 
 DATA_DIR = './'
-x_train_dir = os.path.join(DATA_DIR, 'sample_train_imgs')
-y_train_dir = os.path.join(DATA_DIR, 'sample_train_masks')
+x_train_dir = os.path.join(DATA_DIR, 'full_training_data/all_train_imgs')
+y_train_dir = os.path.join(DATA_DIR, 'full_training_data/all_train_masks')
 
-x_valid_dir = os.path.join(DATA_DIR, 'sample_valid_imgs')
-y_valid_dir = os.path.join(DATA_DIR, 'sample_valid_masks')
-
-x_test_dir = os.path.join(DATA_DIR, 'sample_valid_imgs')
-y_test_dir = os.path.join(DATA_DIR, 'sample_valid_masks')
-
+x_valid_dir = os.path.join(DATA_DIR, 'full_training_data/all_valid_imgs')
+y_valid_dir = os.path.join(DATA_DIR, 'full_training_data/all_valid_masks')
 
 # In[4]:
 
@@ -198,6 +194,7 @@ model = smp.Unet(
     in_channels=3,                  
     classes=len(CLASSES)
 )
+model.to(DEVICE)
 
 
 # In[10]:
@@ -225,7 +222,7 @@ valid_dataset = HubMapDataset(
     classes=CLASSES,
 )
 
-train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True, num_workers=4)
+train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=4)
 valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=False, num_workers=2)
 
 
@@ -259,7 +256,7 @@ class IoUScore(Metric):
 import torchmetrics
 loss = smp.losses.DiceLoss(mode='binary', from_logits=True)
 metrics = [
-    IoUScore(threshold=0.5),
+    IoUScore(threshold=0.5).to(DEVICE),
 ]
 
 optimizer = torch.optim.Adam([ 
@@ -332,7 +329,7 @@ def valid_epoch(model, loss_fn, metrics, device, dataloader):
 
 
 max_iou = 0
-num_epochs = 50
+num_epochs = 100
 if os.path.exists('./models/model_stats.txt'):
   os.remove('./models/model_stats.txt')
 fp = open('./models/model_stats.txt', 'a')
