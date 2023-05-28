@@ -329,7 +329,7 @@ def valid_epoch(model, loss_fn, metrics, device, dataloader):
 
 
 max_iou = 0
-num_epochs = 100
+num_epochs = 40
 if os.path.exists('./models/model_stats.txt'):
   os.remove('./models/model_stats.txt')
 fp = open('./models/model_stats.txt', 'a')
