@@ -3,5 +3,6 @@
 *.jsonl
 *.png
 *.jpg
+*.zip
 .ipynb_checkpoints
 models/
