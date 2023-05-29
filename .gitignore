@@ -7,3 +7,4 @@
 *.pem
 .ipynb_checkpoints
 models/
+full_training_data/
