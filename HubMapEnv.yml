@@ -1,13 +1,11 @@
 name: HubMapEnv
 channels:
-  - conda-forge
   - defaults
 dependencies:
   - _libgcc_mutex=0.1=main
   - _openmp_mutex=5.1=1_gnu
-  - ca-certificates=2023.5.7=hbcca054_0
-  - certifi=2023.5.7=pyhd8ed1ab_0
-  - gh=2.25.1=ha8f183a_0
+  - ca-certificates=2023.01.10=h06a4308_0
+  - certifi=2022.12.7=py37h06a4308_0
   - ld_impl_linux-64=2.38=h1181459_1
   - libffi=3.4.4=h6a678d5_0
   - libgcc-ng=11.2.0=h1234567_1
@@ -35,7 +33,6 @@ dependencies:
     - bleach==6.0.0
     - cffi==1.15.1
     - charset-normalizer==3.1.0
-    - conda-pack==0.6.0
     - cycler==0.11.0
     - debugpy==1.6.7
     - decorator==5.1.1
@@ -110,7 +107,6 @@ dependencies:
     - prompt-toolkit==3.0.38
     - psutil==5.9.5
     - ptyprocess==0.7.0
-    - pycocotools==2.0.6
     - pycparser==2.21
     - pygments==2.15.1
     - pyparsing==3.0.9
