@@ -209,7 +209,6 @@ preprocessing_fn = smp.encoders.get_preprocessing_fn(ENCODER, ENCODER_WEIGHTS)
 train_dataset = HubMapDataset(
     x_train_dir, 
     y_train_dir, 
-    augmentation=get_training_augmentation(), 
     preprocessing=get_preprocessing(preprocessing_fn),
     classes=CLASSES,
 )
@@ -217,12 +216,11 @@ train_dataset = HubMapDataset(
 valid_dataset = HubMapDataset(
     x_valid_dir, 
     y_valid_dir, 
-    augmentation=get_validation_augmentation(), 
     preprocessing=get_preprocessing(preprocessing_fn),
     classes=CLASSES,
 )
 
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=4)
+train_loader = DataLoader(train_dataset, batch_size=2, shuffle=True, num_workers=4)
 valid_loader = DataLoader(valid_dataset, batch_size=1, shuffle=False, num_workers=2)
 
 
