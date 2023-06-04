@@ -49,6 +49,9 @@ def trainer_synapse(args, model, snapshot_path):
     best_performance = 0.0
     iterator = tqdm(range(max_epoch), ncols=70)
     for epoch_num in iterator:
+        epoch_losses = []
+        epoch_losses_ce = []
+        epoch_start_time = time.time()
         for i_batch, sampled_batch in enumerate(trainloader):
             image_batch, label_batch = sampled_batch['image'], sampled_batch['label']
             image_batch, label_batch = image_batch.cuda(), label_batch.cuda()
@@ -67,6 +70,8 @@ def trainer_synapse(args, model, snapshot_path):
             writer.add_scalar('info/lr', lr_, iter_num)
             writer.add_scalar('info/total_loss', loss, iter_num)
             writer.add_scalar('info/loss_ce', loss_ce, iter_num)
+            epoch_losses.append(loss.item())
+            epoch_losses_ce.append(loss_ce.item())
 
             logging.info('iteration %d : loss : %f, loss_ce: %f' % (iter_num, loss.item(), loss_ce.item()))
 
@@ -78,9 +83,10 @@ def trainer_synapse(args, model, snapshot_path):
                 writer.add_image('train/Prediction', outputs[1, ...] * 50, iter_num)
                 labs = label_batch[1, ...].unsqueeze(0) * 50
                 writer.add_image('train/GroundTruth', labs, iter_num)
-
-        save_interval = 50  # int(max_epoch/6)
-        if epoch_num > int(max_epoch / 2) and (epoch_num + 1) % save_interval == 0:
+        
+        logging.info('epoch %d : loss : %f, loss_ce: %f, epoch_time: %f' % (epoch_num, np.mean(epoch_losses), np.mean(epoch_losses_ce), float(time.time()-epoch_start_time)/60))
+        save_interval = 5  # int(max_epoch/6)
+        if epoch_num > 0 and (epoch_num + 1) % save_interval == 0:
             save_mode_path = os.path.join(snapshot_path, 'epoch_' + str(epoch_num) + '.pth')
             torch.save(model.state_dict(), save_mode_path)
             logging.info("save model to {}".format(save_mode_path))

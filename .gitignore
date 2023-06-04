@@ -9,6 +9,9 @@
 *.npz
 *.h5
 *.txt
+*.pth
+*.swp
+*.internal
 .ipynb_checkpoints
 models/
 full_training_data/

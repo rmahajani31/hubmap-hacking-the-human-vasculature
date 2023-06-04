@@ -32,7 +32,7 @@ parser.add_argument('--img_size', type=int, default=224, help='input patch size 
 parser.add_argument('--is_savenii', action="store_true", help='whether to save results during inference')
 
 parser.add_argument('--n_skip', type=int, default=3, help='using number of skip-connect, default is num')
-parser.add_argument('--vit_name', type=str, default='ViT-B_16', help='select one vit model')
+parser.add_argument('--vit_name', type=str, default='R50-ViT-B_16', help='select one vit model')
 
 parser.add_argument('--test_save_dir', type=str, default='../predictions', help='saving prediction as nii!')
 parser.add_argument('--deterministic', type=int,  default=1, help='whether use deterministic training')
@@ -43,12 +43,13 @@ args = parser.parse_args()
 
 
 def inference(args, model, test_save_path=None):
-    db_test = args.Dataset(base_dir=args.volume_path, split="test_vol", list_dir=args.list_dir)
+    db_test = args.Dataset(base_dir=args.volume_path, split="test", list_dir=args.list_dir)
     testloader = DataLoader(db_test, batch_size=1, shuffle=False, num_workers=1)
     logging.info("{} test iterations per epoch".format(len(testloader)))
     model.eval()
     metric_list = 0.0
     for i_batch, sampled_batch in tqdm(enumerate(testloader)):
+        print(f'sample batch image size: {sampled_batch["image"].size()}')
         h, w = sampled_batch["image"].size()[2:]
         image, label, case_name = sampled_batch["image"], sampled_batch["label"], sampled_batch['case_name'][0]
         metric_i = test_single_volume(image, label, model, classes=args.num_classes, patch_size=[args.img_size, args.img_size],
@@ -78,11 +79,11 @@ if __name__ == "__main__":
     torch.cuda.manual_seed(args.seed)
 
     dataset_config = {
-        'Synapse': {
+        'HubMap': {
             'Dataset': Synapse_dataset,
-            'volume_path': '../data/Synapse/test_vol_h5',
-            'list_dir': './lists/lists_Synapse',
-            'num_classes': 9,
+            'volume_path': '../data/HubMap/test_h5',
+            'list_dir': './lists/lists_HubMap',
+            'num_classes': 2,
             'z_spacing': 1,
         },
     }
@@ -118,7 +119,9 @@ if __name__ == "__main__":
     net = ViT_seg(config_vit, img_size=args.img_size, num_classes=config_vit.n_classes).cuda()
 
     snapshot = os.path.join(snapshot_path, 'best_model.pth')
-    if not os.path.exists(snapshot): snapshot = snapshot.replace('best_model', 'epoch_'+str(args.max_epochs-1))
+    #if not os.path.exists(snapshot): snapshot = snapshot.replace('best_model', 'epoch_'+str(args.max_epochs-1))
+    if not os.path.exists(snapshot): snapshot = snapshot.replace('best_model', 'epoch_'+str(9))
+    print(f'Loaded snapshot path is: {snapshot}')
     net.load_state_dict(torch.load(snapshot))
     snapshot_name = snapshot_path.split('/')[-1]
 
