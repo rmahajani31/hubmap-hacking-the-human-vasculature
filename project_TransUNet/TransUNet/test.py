@@ -119,8 +119,8 @@ if __name__ == "__main__":
     net = ViT_seg(config_vit, img_size=args.img_size, num_classes=config_vit.n_classes).cuda()
 
     snapshot = os.path.join(snapshot_path, 'best_model.pth')
-    #if not os.path.exists(snapshot): snapshot = snapshot.replace('best_model', 'epoch_'+str(args.max_epochs-1))
-    if not os.path.exists(snapshot): snapshot = snapshot.replace('best_model', 'epoch_'+str(9))
+    if not os.path.exists(snapshot): snapshot = snapshot.replace('best_model', 'epoch_'+str(args.max_epochs-1))
+    #if not os.path.exists(snapshot): snapshot = snapshot.replace('best_model', 'epoch_'+str(14))
     print(f'Loaded snapshot path is: {snapshot}')
     net.load_state_dict(torch.load(snapshot))
     snapshot_name = snapshot_path.split('/')[-1]

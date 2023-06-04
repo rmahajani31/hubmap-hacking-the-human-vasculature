@@ -12,6 +12,7 @@
 *.pth
 *.swp
 *.internal
+*.pyc
 .ipynb_checkpoints
 models/
 full_training_data/
