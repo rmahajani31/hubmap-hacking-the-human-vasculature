@@ -6,6 +6,9 @@
 *.zip
 *.pem
 *.tar.gz
+*.npz
+*.h5
+*.txt
 .ipynb_checkpoints
 models/
 full_training_data/
