@@ -55,3 +55,8 @@ sudo umount /dev/xvdf
 
 sudo yum update
 yum install gcc gcc-c++ make 
+
+pip install gdown
+
+gdown --id <put-the-ID>
+
