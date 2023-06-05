@@ -32,6 +32,8 @@ y_train_dir = os.path.join(DATA_DIR, 'full_training_data/all_train_masks')
 x_valid_dir = os.path.join(DATA_DIR, 'full_training_data/all_valid_imgs')
 y_valid_dir = os.path.join(DATA_DIR, 'full_training_data/all_valid_masks')
 
+model_prefix = 'deepvlab3plus'
+
 # In[4]:
 
 
@@ -328,9 +330,9 @@ def valid_epoch(model, loss_fn, metrics, device, dataloader):
 
 max_iou = 0
 num_epochs = 40
-if os.path.exists('./models/model_stats.txt'):
-  os.remove('./models/model_stats.txt')
-fp = open('./models/model_stats.txt', 'a')
+if os.path.exists(f'./models/{model_prefix}_model_stats.txt'):
+  os.remove(f'./models/{model_prefix}_model_stats.txt')
+fp = open(f'./models/{model_prefix}_model_stats.txt', 'a')
 for epoch in range(num_epochs):
     # Training
     train_metrics = train_epoch(model, loss, metrics, optimizer, DEVICE, train_loader)
@@ -342,8 +344,8 @@ for epoch in range(num_epochs):
     cur_validation_iou = valid_metrics[1]
     if cur_validation_iou > max_iou:
       print(f'Saving model with IoU: {cur_validation_iou}...')
-      torch.save(model, './models/best_model.pth')
-      with open('./models/best_model.txt', 'w') as f:
+      torch.save(model, f'./models/{model_prefix}_best_model.pth')
+      with open(f'./models/{model_prefix}_best_model.txt', 'w') as f:
         f.write(f"Epoch {epoch}: Train Loss={train_metrics[0]}, Validation Loss={valid_metrics[0]}, Train IoU={train_metrics[1]}, Validation IoU={valid_metrics[1]}")
       max_iou = cur_validation_iou
     # Print or log the metrics for each epoch
