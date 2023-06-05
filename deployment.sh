@@ -1,3 +1,36 @@
+AWS Setup:
+sudo yum update
+sudo yum install gcc gcc-c++ make git mesa-libGL tmux -y
+export TMPDIR='/var/tmp'
+
+curl https://repo.anaconda.com/archive/Anaconda3-2023.03-Linux-x86_64.sh --output anaconda.sh
+bash anaconda.sh -b -p /home/ec2-user/anaconda3
+echo 'export PATH="/home/ec2-user/anaconda3/bin:$PATH"' >> ~/.bashrc
+bash
+conda init
+bash
+
+git clone https://github.com/rmahajani31/hubmap-hacking-the-human-vasculature.git
+
+git clone https://Akash-sopho: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@github.com/rmahajani31/hubmap-hacking-the-human-vasculature.git
+cd hubmap-hacking-the-human-vasculature
+
+conda env create -f HubMapEnv.yml
+conda activate HubMapEnv
+
+pip install gdown chardet torchmetrics
+gdown https://drive.google.com/uc?id=1kQPgf0OhGQLdcIUDuCO8gk1DZIOWPyIh
+unzip full_training_data.zip
+
+python deepLabV3-model-training.py
+mkdir models
+
+
+
+
+
+
+
 curl https://repo.anaconda.com/archive/Anaconda3-2023.03-Linux-x86_64.sh --output anaconda.sh
 bash anaconda.sh
 bash
