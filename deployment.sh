@@ -29,6 +29,8 @@ sudo chmod a+w /mnt/disks/
 ------------------------------------------------
 aws
 
+
+export TMPDIR='/var/tmp'
 lsblk
 sudo file -s /dev/xvdf
 If the above command output shows “/dev/xvdf: data“, it means your volume is empty.
