@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[1]:
+# In[3]:
 
 
 import os
@@ -16,31 +16,31 @@ import torch
 import segmentation_models_pytorch as smp
 
 
-# In[2]:
+# In[4]:
 
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 DEVICE
 
 
-# In[3]:
+# In[22]:
 
 
 DATA_DIR = './'
-x_train_dir = os.path.join(DATA_DIR, 'all_dataset_files/all_dataset_imgs')
-y_train_dir = os.path.join(DATA_DIR, 'all_dataset_files/all_dataset_masks')
+x_train_dir = os.path.join(DATA_DIR, 'dataset1_files/all_dataset1_imgs')
+y_train_dir = os.path.join(DATA_DIR, 'dataset1_files/all_dataset1_masks')
 
-x_valid_dir = os.path.join(DATA_DIR, 'full_training_data/sample_valid_imgs')
-y_valid_dir = os.path.join(DATA_DIR, 'full_training_data/sample_valid_masks')
+x_valid_dir = os.path.join(DATA_DIR, 'dataset1_files/all_dataset2_imgs')
+y_valid_dir = os.path.join(DATA_DIR, 'dataset1_files/all_dataset2_masks')
 
 
-# In[4]:
+# In[23]:
 
 
 len(os.listdir(x_train_dir)), len(os.listdir(y_train_dir)), len(os.listdir(x_valid_dir)), len(os.listdir(y_valid_dir))
 
 
-# In[5]:
+# In[24]:
 
 
 # helper function for data visualization
@@ -57,7 +57,7 @@ def visualize(**images):
     plt.show()
 
 
-# In[6]:
+# In[25]:
 
 
 class HubMapDataset(BaseDataset):
@@ -121,7 +121,7 @@ class HubMapDataset(BaseDataset):
         return len(self.ids)
 
 
-# In[7]:
+# In[26]:
 
 
 def get_training_augmentation():
@@ -157,7 +157,7 @@ def get_preprocessing(preprocessing_fn):
     return albu.Compose(_transform)
 
 
-# In[8]:
+# In[27]:
 
 
 CLASSES = ['unlabelled', 'blood_vessel']
@@ -165,27 +165,16 @@ ENCODER = 'efficientnet-b7'
 ENCODER_WEIGHTS = 'imagenet'
 
 
-# In[9]:
+# In[28]:
 
 
-data_parallel = False
-model = smp.Unet(
-    encoder_name=ENCODER,        
-    encoder_weights=ENCODER_WEIGHTS,     
-    in_channels=3,                  
-    classes=len(CLASSES)
-)
-model = model.to(DEVICE)
-model = nn.DataParallel(model) if data_parallel else model
-
-
-# In[10]:
+# In[29]:
 
 
 preprocessing_fn = smp.encoders.get_preprocessing_fn(ENCODER, ENCODER_WEIGHTS)
 
 
-# In[11]:
+# In[30]:
 
 
 train_dataset = HubMapDataset(
@@ -203,18 +192,15 @@ valid_dataset = HubMapDataset(
     classes=CLASSES,
 )
 
-train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2)
-valid_loader = DataLoader(valid_dataset, batch_size=4, shuffle=False, num_workers=2)
 
-
-# In[12]:
+# In[31]:
 
 
 _, image, mask = train_dataset[0]
 print(image.shape, mask.shape)
 
 
-# In[13]:
+# In[32]:
 
 
 from torchmetrics import Metric
@@ -250,7 +236,7 @@ class IoUScore(Metric):
         return iou_back,iou_fore
 
 
-# In[14]:
+# In[33]:
 
 
 def dice_loss(preds, targets, class_weights, threshold=0.5, smooth=1e-5):
@@ -262,11 +248,10 @@ def dice_loss(preds, targets, class_weights, threshold=0.5, smooth=1e-5):
     denom_sum = preds_flat.sum(dim=(-1,0)) + targets_flat.sum(dim=(-1,0))
     dice_coeffs = (2 * intersection_sum + smooth) / (denom_sum + smooth)
     dice_coeff = torch.sum(dice_coeffs * class_weights) / torch.sum(class_weights)
-#     print(f'Shapes: {preds.requires_grad}, {preds_probs.shape}, {preds_probs.requires_grad}, {preds_flat.shape}, {preds_flat.requires_grad}, {targets_flat.shape}, {targets_flat.requires_grad}, {intersection_vals.shape}, {intersection_vals.requires_grad}, {intersection_sum.shape}, {intersection_sum.requires_grad}, {denom_sum.shape}, {denom_sum.requires_grad}, {dice_coeffs.shape}, {dice_coeffs.requires_grad}, {dice_coeff.shape}, {dice_coeffs.requires_grad}')
     return 1 - dice_coeff
 
 
-# In[15]:
+# In[34]:
 
 
 import torchmetrics
@@ -274,12 +259,7 @@ metrics = [
     IoUScore(threshold=0.5).to(DEVICE),
 ]
 
-optimizer = torch.optim.Adam([ 
-    dict(params=model.parameters(), lr=0.0001),
-])
-
-
-# In[16]:
+# In[35]:
 
 
 from tqdm import tqdm
@@ -292,7 +272,7 @@ def train_epoch(model, metrics, optimizer, device, dataloader, class_weights=[0.
     class_weights = class_weights.to(device)
     print(f'Processing a total of {num_batches} batches in training')
     # Iterate over the training dataset
-    for batch_idx, (f, inputs, targets) in tqdm(enumerate(dataloader)):        
+    for batch_idx, (f, inputs, targets) in tqdm(enumerate(dataloader)):
         inputs = inputs.to(device)
         targets = targets.to(device)
 
@@ -312,12 +292,10 @@ def train_epoch(model, metrics, optimizer, device, dataloader, class_weights=[0.
         for metric in metrics:
             metric.update(torch.softmax(outputs, dim=1), targets)
         total_loss += loss
-
     # Get the metric values
     metric_values = [float(total_loss)/num_batches] + [metric.compute() for metric in metrics]
     return metric_values
 
-# Validation loop
 def valid_epoch(model, metrics, device, dataloader, class_weights=[0.05,1]):
     model.eval()
     num_batches = len(dataloader)
@@ -346,41 +324,110 @@ def valid_epoch(model, metrics, device, dataloader, class_weights=[0.05,1]):
     return metric_values
 
 
-# In[17]:
+# In[36]:
 
 
+## This is a block to run training with cross validation
 import time
-max_iou = 0
+from sklearn.model_selection import KFold
+from torch.utils.data import Subset
+num_folds = 5
+
+kfold = KFold(n_splits=num_folds, shuffle=True, random_state=42)
 num_epochs = 50
-if os.path.exists('./models/model_stats_unet_dataset1.txt'):
-  os.remove('./models/model_stats_unet_dataset1.txt')
-fp = open('./models/model_stats_unet_dataset1.txt', 'a')
-for epoch in range(num_epochs):
-    # Training
-    start_time = time.time()
-    train_metrics = train_epoch(model, metrics, optimizer, DEVICE, train_loader)
-    print(f'=========Finished Training Epoch {epoch} in {float(time.time()-start_time)/60}==========')
-    # Validation
-    start_time = time.time()
-    valid_metrics = valid_epoch(model, metrics, DEVICE, valid_loader)
-    print(f'=========Finished Validation Epoch {epoch} {float(time.time()-start_time)/60}in =========')
-    
-    save_interval = 10
-    if (epoch+1) % 10 == 0:
-        torch.save(model, f'./models/model_{epoch}_unet_dataset1.pth')
-    
-    cur_validation_iou = 0.5*valid_metrics[1][0] + 0.5*valid_metrics[1][1]
-    if cur_validation_iou > max_iou:
-      print(f'Saving model with IoU: {cur_validation_iou}...')
-      torch.save(model, './models/best_model_unet_dataset1.pth')
-      with open('./models/best_model_unet_dataset1.txt', 'w') as f:
-        f.write(f"Epoch {epoch}: Train Loss={train_metrics[0]}, Validation Loss={valid_metrics[0]}, Train IoU Back={train_metrics[1][0]}, Train IoU Fore={train_metrics[1][1]}, Validation IoU Back={valid_metrics[1][0]}, Validation IoU Fore={valid_metrics[1][1]}")
-      max_iou = cur_validation_iou
+
+for i in range(0, num_folds):
+  if os.path.exists(f'./models/model_stats_unet_dataset1_fold_{i}.txt'):
+    os.remove(f'./models/model_stats_unet_dataset1_fold_{i}.txt')
+
+for fold, (train_indices, valid_indices) in enumerate(kfold.split(train_dataset)):
+  cur_train_dataset = Subset(train_dataset, train_indices)
+  cur_valid_dataset = Subset(train_dataset, valid_indices)
+  train_loader = DataLoader(cur_train_dataset, batch_size=4, shuffle=True, num_workers=2)
+  valid_loader = DataLoader(cur_valid_dataset, batch_size=4, shuffle=False, num_workers=2)
+  max_iou = 0
+  print(f'Starting fold {fold} with dataset sizes: {len(cur_train_dataset)}, {len(cur_valid_dataset)}')
+  data_parallel = False
+  model = smp.Unet(
+    encoder_name=ENCODER,
+    encoder_weights=ENCODER_WEIGHTS,
+    in_channels=3,
+    classes=len(CLASSES)
+    )
+  model = model.to(DEVICE)
+  model = nn.DataParallel(model) if data_parallel else model
+  optimizer = torch.optim.Adam([
+    dict(params=model.parameters(), lr=0.0001),
+  ])
+  num_continuous_unsaved_epochs = 0
+  for epoch in range(num_epochs):
+      # Training
+      start_time = time.time()
+      train_metrics = train_epoch(model, metrics, optimizer, DEVICE, train_loader)
+      print(f'=========Finished Training Epoch {epoch} in {float(time.time()-start_time)/60}==========')
+      # Validation
+      start_time = time.time()
+      valid_metrics = valid_epoch(model, metrics, DEVICE, valid_loader)
+      print(f'=========Finished Validation Epoch {epoch} {float(time.time()-start_time)/60}in =========')
+
+      cur_validation_iou = 0.5*valid_metrics[1][0] + 0.5*valid_metrics[1][1]
+      if cur_validation_iou > max_iou:
+        print(f'Saving model with IoU: {cur_validation_iou}...')
+        torch.save(model, f'./models/best_model_unet_dataset1_fold_{fold}.pth')
+        with open(f'./models/best_model_unet_dataset1_fold_{fold}.txt', 'w') as f:
+          f.write(f"Epoch {epoch}: Train Loss={train_metrics[0]}, Validation Loss={valid_metrics[0]}, Train IoU Back={train_metrics[1][0]}, Train IoU Fore={train_metrics[1][1]}, Validation IoU Back={valid_metrics[1][0]}, Validation IoU Fore={valid_metrics[1][1]}")
+        max_iou = cur_validation_iou
+        num_continuous_unsaved_epochs = 0
+      else:
+        num_continuous_unsaved_epochs += 1
+      # Print or log the metrics for each epoch
+      print(f"Epoch {epoch}: Train Loss={train_metrics[0]}, Validation Loss={valid_metrics[0]}, Train IoU Back={train_metrics[1][0]}, Train IoU Fore={train_metrics[1][1]}, Validation IoU Back={valid_metrics[1][0]}, Validation IoU Fore={valid_metrics[1][1]}")
+      with open(f'./models/model_stats_unet_dataset1_fold_{fold}.txt', 'a') as fp:
+        fp.write(f"Epoch {epoch}: Train Loss={train_metrics[0]}, Validation Loss={valid_metrics[0]}, Train IoU Back={train_metrics[1][0]}, Train IoU Fore={train_metrics[1][1]}, Validation IoU Back={valid_metrics[1][0]}, Validation IoU Fore={valid_metrics[1][1]}\n")
+        fp.flush()
+      if num_continuous_unsaved_epochs == 7:
+          break
+
+
+
+# In[20]:
+
+
+## This is a block to run training without cross validation
+#import time
+#train_loader = DataLoader(train_dataset, batch_size=4, shuffle=True, num_workers=2)
+#valid_loader = DataLoader(valid_dataset, batch_size=4, shuffle=False, num_workers=2)
+#max_iou = 0
+#num_epochs = 50
+#if os.path.exists('./models/model_stats_unet_dataset1.txt'):
+#  os.remove('./models/model_stats_unet_dataset1.txt')
+#fp = open('./models/model_stats_unet_dataset1.txt', 'a')
+#for epoch in range(num_epochs):
+#    # Training
+#    start_time = time.time()
+#    train_metrics = train_epoch(model, metrics, optimizer, DEVICE, train_loader)
+#    print(f'=========Finished Training Epoch {epoch} in {float(time.time()-start_time)/60}==========')
+#    # Validation
+#    start_time = time.time()
+#    valid_metrics = valid_epoch(model, metrics, DEVICE, valid_loader)
+#    print(f'=========Finished Validation Epoch {epoch} {float(time.time()-start_time)/60}in =========')
+#    
+#    save_interval = 10
+#    if (epoch+1) % 10 == 0:
+#        torch.save(model, f'./models/model_{epoch}_unet_dataset1.pth')
+#    
+#    cur_validation_iou = 0.5*valid_metrics[1][0] + 0.5*valid_metrics[1][1]
+#    if cur_validation_iou > max_iou:
+#      print(f'Saving model with IoU: {cur_validation_iou}...')
+#      torch.save(model, './models/best_model_unet_dataset1.pth')
+#      with open('./models/best_model_unet_dataset1.txt', 'w') as f:
+#        f.write(f"Epoch {epoch}: Train Loss={train_metrics[0]}, Validation Loss={valid_metrics[0]}, Train IoU Back={train_metrics[1][0]}, Train IoU Fore={train_metrics[1][1]}, Validation IoU Back={valid_metrics[1][0]}, Validation IoU Fore={valid_metrics[1][1]}")
+#      max_iou = cur_validation_iou
     # Print or log the metrics for each epoch
-    print(f"Epoch {epoch}: Train Loss={train_metrics[0]}, Validation Loss={valid_metrics[0]}, Train IoU Back={train_metrics[1][0]}, Train IoU Fore={train_metrics[1][1]}, Validation IoU Back={valid_metrics[1][0]}, Validation IoU Fore={valid_metrics[1][1]}")
-    fp.write(f"Epoch {epoch}: Train Loss={train_metrics[0]}, Validation Loss={valid_metrics[0]}, Train IoU Back={train_metrics[1][0]}, Train IoU Fore={train_metrics[1][1]}, Validation IoU Back={valid_metrics[1][0]}, Validation IoU Fore={valid_metrics[1][1]}\n")
-    fp.flush()
-fp.close()
+#    print(f"Epoch {epoch}: Train Loss={train_metrics[0]}, Validation Loss={valid_metrics[0]}, Train IoU Back={train_metrics[1][0]}, Train IoU Fore={train_metrics[1][1]}, Validation IoU Back={valid_metrics[1][0]}, Validation IoU Fore={valid_metrics[1][1]}")
+#    fp.write(f"Epoch {epoch}: Train Loss={train_metrics[0]}, Validation Loss={valid_metrics[0]}, Train IoU Back={train_metrics[1][0]}, Train IoU Fore={train_metrics[1][1]}, Validation IoU Back={valid_metrics[1][0]}, Validation IoU Fore={valid_metrics[1][1]}\n")
+#    fp.flush()
+#fp.close()
 
 
 # In[ ]:
