@@ -6,7 +6,7 @@ import torch
 from scipy import ndimage
 from scipy.ndimage.interpolation import zoom
 from torch.utils.data import Dataset
-
+import albumentations as albu
 
 def random_rot_flip(image, label):
     k = np.random.randint(0, 4)
@@ -28,14 +28,21 @@ def random_rotate(image, label):
 class RandomGenerator(object):
     def __init__(self, output_size):
         self.output_size = output_size
+        self.train_transform = albu.Compose([
+        albu.ShiftScaleRotate(shift_limit=0, scale_limit=0, rotate_limit=90),
+        albu.ShiftScaleRotate(shift_limit=0.2, scale_limit=0, rotate_limit=0),
+        albu.ShiftScaleRotate(shift_limit=0, scale_limit=0.2, rotate_limit=0),
+        albu.Flip(),
+        albu.RandomBrightnessContrast(),
+        albu.RandomResizedCrop(height=512, width=512, scale=(0.8, 1.0), p=1),
+        albu.ColorJitter()
+        ])
 
     def __call__(self, sample):
         image, label = sample['image'], sample['label']
-
-        if random.random() > 0.5:
-            image, label = random_rot_flip(image, label)
-        elif random.random() > 0.5:
-            image, label = random_rotate(image, label)
+        transformed_vals = self.train_transform(image=image, label=label)
+        image = transformed_vals['image']
+        label = transformed_vals['label']
         x, y = image.shape
         if x != self.output_size[0] or y != self.output_size[1]:
             image = zoom(image, (self.output_size[0] / x, self.output_size[1] / y), order=3)  # why not 3?

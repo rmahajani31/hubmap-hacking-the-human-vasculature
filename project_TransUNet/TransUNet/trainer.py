@@ -15,6 +15,38 @@ from tqdm import tqdm
 from utils import DiceLoss
 from torchvision import transforms
 
+from torchmetrics import Metric
+class IoUScore(Metric):
+    def __init__(self, threshold=0.5, dist_sync_on_step=False):
+        super().__init__(dist_sync_on_step=dist_sync_on_step)
+        self.threshold = threshold
+        self.add_state("intersection_back", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("union_back", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("intersection_fore", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("union_fore", default=torch.tensor(0), dist_reduce_fx="sum")
+        self.add_state("num_images", default=torch.tensor(0), dist_reduce_fx="sum")
+
+    def update(self, preds: torch.Tensor, target: torch.Tensor):
+        preds = (preds > self.threshold).int()
+        intersection_back = torch.logical_and(preds[:,0,:,:], target==0).sum()
+        union_back = torch.logical_or(preds[:,0,:,:], target==0).sum()
+        intersection_fore = torch.logical_and(preds[:,1,:,:], target==1).sum()
+        union_fore = torch.logical_or(preds[:,1,:,:], target==1).sum()
+
+        self.intersection_back += intersection_back
+        self.union_back += union_back
+        self.intersection_fore += intersection_fore
+        self.union_fore += union_fore
+
+    def compute(self):
+        iou_back = (self.intersection_back.float() / self.union_back.float())
+        iou_fore = (self.intersection_fore.float() / self.union_fore.float())
+        self.intersection_back = 0
+        self.union_back = 0
+        self.intersection_fore = 0
+        self.union_fore = 0
+        return iou_back,iou_fore
+
 def trainer_synapse(args, model, snapshot_path):
     from datasets.dataset_synapse import Synapse_dataset, RandomGenerator
     logging.basicConfig(filename=snapshot_path + "/log.txt", level=logging.INFO,
@@ -38,7 +70,10 @@ def trainer_synapse(args, model, snapshot_path):
     if args.n_gpu > 1:
         model = nn.DataParallel(model)
     model.train()
-    ce_loss = CrossEntropyLoss()
+    metrics = [
+    IoUScore(threshold=0.5).cuda(),
+    ]
+    ce_loss = CrossEntropyLoss(weight=torch.tensor([0.05,1], dtype=torch.float32).cuda())
     dice_loss = DiceLoss(num_classes)
     optimizer = optim.SGD(model.parameters(), lr=base_lr, momentum=0.9, weight_decay=0.0001)
     writer = SummaryWriter(snapshot_path + '/log')
@@ -57,7 +92,7 @@ def trainer_synapse(args, model, snapshot_path):
             image_batch, label_batch = image_batch.cuda(), label_batch.cuda()
             outputs = model(image_batch)
             loss_ce = ce_loss(outputs, label_batch[:].long())
-            loss_dice = dice_loss(outputs, label_batch, softmax=True)
+            loss_dice = dice_loss(outputs, label_batch, weight=[0.05,1], softmax=True)
             loss = 0.5 * loss_ce + 0.5 * loss_dice
             optimizer.zero_grad()
             loss.backward()
@@ -72,8 +107,11 @@ def trainer_synapse(args, model, snapshot_path):
             writer.add_scalar('info/loss_ce', loss_ce, iter_num)
             epoch_losses.append(loss.item())
             epoch_losses_ce.append(loss_ce.item())
+            print(f'Shapes: {outputs.shape}, {label_batch.shape}')
+            for metric in metrics:
+                metric.update(torch.softmax(outputs, dim=1), label_batch)
 
-            logging.info('iteration %d : loss : %f, loss_ce: %f' % (iter_num, loss.item(), loss_ce.item()))
+            #logging.info('iteration %d : loss : %f, loss_ce: %f' % (iter_num, loss.item(), loss_ce.item())) 
 
             if iter_num % 20 == 0:
                 image = image_batch[1, 0:1, :, :]
@@ -83,8 +121,8 @@ def trainer_synapse(args, model, snapshot_path):
                 writer.add_image('train/Prediction', outputs[1, ...] * 50, iter_num)
                 labs = label_batch[1, ...].unsqueeze(0) * 50
                 writer.add_image('train/GroundTruth', labs, iter_num)
-        
-        logging.info('epoch %d : loss : %f, loss_ce: %f, epoch_time: %f' % (epoch_num, np.mean(epoch_losses), np.mean(epoch_losses_ce), float(time.time()-epoch_start_time)/60))
+        metric_values = [metric.compute() for metric in metrics]
+        logging.info('epoch %d : loss : %f, loss_ce: %f, train_IoU_back: %f, train_IoU_fore: %f, epoch_time: %f' % (epoch_num, np.mean(epoch_losses), np.mean(epoch_losses_ce), metric_values[0][0], metric_values[0][1], float(time.time()-epoch_start_time)/60))
         save_interval = 5  # int(max_epoch/6)
         if epoch_num > 0 and (epoch_num + 1) % save_interval == 0:
             save_mode_path = os.path.join(snapshot_path, 'epoch_' + str(epoch_num) + '.pth')
