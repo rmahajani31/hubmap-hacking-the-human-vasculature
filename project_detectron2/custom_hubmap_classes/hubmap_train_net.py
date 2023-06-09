@@ -20,7 +20,6 @@ It also includes fewer abstraction, therefore is easier to add custom logic.
 """
 
 import sys
-# sys.path.append('.')
 import logging
 import os
 from collections import OrderedDict
@@ -180,6 +179,7 @@ def setup(args):
     """
     Create configs and perform basic setups.
     """
+    print(f'opts is: {args.opts}')
     cfg = get_cfg()
     cfg.merge_from_file(args.config_file)
     cfg.merge_from_list(args.opts)
