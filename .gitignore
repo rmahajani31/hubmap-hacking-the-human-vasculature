@@ -14,6 +14,7 @@
 *.internal
 *.pyc
 *.pkl
+*ec2.internal*
 detectron2/
 .ipynb_checkpoints
 models/

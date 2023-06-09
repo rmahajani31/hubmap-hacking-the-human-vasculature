@@ -10,8 +10,7 @@ DATASETS:
   PRECOMPUTED_PROPOSAL_TOPK_TRAIN: 2000
   PROPOSAL_FILES_TEST: []
   PROPOSAL_FILES_TRAIN: []
-  TEST:
-  - hubmap-dataset-1
+  TEST: []
   TRAIN:
   - hubmap-dataset-1
 GLOBAL:
@@ -29,6 +28,11 @@ INPUT:
   MAX_SIZE_TRAIN: 1333
   MIN_SIZE_TEST: 800
   MIN_SIZE_TRAIN:
+  - 640
+  - 672
+  - 704
+  - 736
+  - 768
   - 800
   MIN_SIZE_TRAIN_SAMPLING: choice
   RANDOM_FLIP: horizontal
@@ -46,17 +50,21 @@ MODEL:
     OFFSET: 0.0
     SIZES:
     - - 32
-      - 64
-      - 128
-      - 256
-      - 512
+    - - 64
+    - - 128
+    - - 256
+    - - 512
   BACKBONE:
     FREEZE_AT: 2
-    NAME: build_resnet_backbone
-  DEVICE: cpu
+    NAME: build_resnet_fpn_backbone
+  DEVICE: cuda
   FPN:
     FUSE_TYPE: sum
-    IN_FEATURES: []
+    IN_FEATURES:
+    - res2
+    - res3
+    - res4
+    - res5
     NORM: ''
     OUT_CHANNELS: 256
   KEYPOINT_ON: false
@@ -93,7 +101,10 @@ MODEL:
     NORM: FrozenBN
     NUM_GROUPS: 1
     OUT_FEATURES:
+    - res2
+    - res3
     - res4
+    - res5
     RES2_OUT_CHANNELS: 256
     RES5_DILATION: 1
     STEM_OUT_CHANNELS: 64
@@ -157,11 +168,11 @@ MODEL:
     FC_DIM: 1024
     FED_LOSS_FREQ_WEIGHT_POWER: 0.5
     FED_LOSS_NUM_CLASSES: 50
-    NAME: ''
+    NAME: FastRCNNConvFCHead
     NORM: ''
     NUM_CONV: 0
-    NUM_FC: 0
-    POOLER_RESOLUTION: 14
+    NUM_FC: 2
+    POOLER_RESOLUTION: 7
     POOLER_SAMPLING_RATIO: 0
     POOLER_TYPE: ROIAlignV2
     SMOOTH_L1_BETA: 0.0
@@ -171,13 +182,16 @@ MODEL:
   ROI_HEADS:
     BATCH_SIZE_PER_IMAGE: 512
     IN_FEATURES:
-    - res4
+    - p2
+    - p3
+    - p4
+    - p5
     IOU_LABELS:
     - 0
     - 1
     IOU_THRESHOLDS:
     - 0.5
-    NAME: Res5ROIHeads
+    NAME: StandardROIHeads
     NMS_THRESH_TEST: 0.5
     NUM_CLASSES: 80
     POSITIVE_FRACTION: 0.25
@@ -206,7 +220,7 @@ MODEL:
     CONV_DIM: 256
     NAME: MaskRCNNConvUpsampleHead
     NORM: ''
-    NUM_CONV: 0
+    NUM_CONV: 4
     POOLER_RESOLUTION: 14
     POOLER_SAMPLING_RATIO: 0
     POOLER_TYPE: ROIAlignV2
@@ -220,7 +234,11 @@ MODEL:
     - -1
     HEAD_NAME: StandardRPNHead
     IN_FEATURES:
-    - res4
+    - p2
+    - p3
+    - p4
+    - p5
+    - p6
     IOU_LABELS:
     - 0
     - -1
@@ -232,9 +250,9 @@ MODEL:
     NMS_THRESH: 0.7
     POSITIVE_FRACTION: 0.5
     POST_NMS_TOPK_TEST: 1000
-    POST_NMS_TOPK_TRAIN: 2000
-    PRE_NMS_TOPK_TEST: 6000
-    PRE_NMS_TOPK_TRAIN: 12000
+    POST_NMS_TOPK_TRAIN: 1000
+    PRE_NMS_TOPK_TEST: 1000
+    PRE_NMS_TOPK_TRAIN: 2000
     SMOOTH_L1_BETA: 0.0
   SEM_SEG_HEAD:
     COMMON_STRIDE: 4
@@ -250,32 +268,32 @@ MODEL:
     NORM: GN
     NUM_CLASSES: 54
   WEIGHTS: detectron2://ImageNetPretrained/MSRA/R-50.pkl
-OUTPUT_DIR: output
+OUTPUT_DIR: ./output
 SEED: -1
 SOLVER:
   AMP:
     ENABLED: false
-  BASE_LR: 0.0025
+  BASE_LR: 0.02
   BASE_LR_END: 0.0
   BIAS_LR_FACTOR: 1.0
-  CHECKPOINT_PERIOD: 100
+  CHECKPOINT_PERIOD: 5000
   CLIP_GRADIENTS:
     CLIP_TYPE: value
     CLIP_VALUE: 1.0
     ENABLED: false
     NORM_TYPE: 2.0
   GAMMA: 0.1
-  IMS_PER_BATCH: 2
+  IMS_PER_BATCH: 16
   LR_SCHEDULER_NAME: WarmupMultiStepLR
-  MAX_ITER: 1200
+  MAX_ITER: 270000
   MOMENTUM: 0.9
   NESTEROV: false
   NUM_DECAYS: 3
   REFERENCE_WORLD_SIZE: 0
   RESCALE_INTERVAL: false
   STEPS:
-  - 800
-  - 1000
+  - 210000
+  - 250000
   WARMUP_FACTOR: 0.001
   WARMUP_ITERS: 1000
   WARMUP_METHOD: linear
