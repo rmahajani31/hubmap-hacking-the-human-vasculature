@@ -49,7 +49,7 @@ class HubMapDataset:
     def __init__(self, image_dir, annotation_dir):
         self.image_dir = image_dir
         self.annotation_dir = annotation_dir
-        self.image_file_list = os.listdir(self.image_dir)
+        self.image_file_list = sorted(os.listdir(self.image_dir))
         self.annotation_file_list = os.listdir(self.annotation_dir)
         
     def __len__(self):
@@ -57,7 +57,8 @@ class HubMapDataset:
         
     def __getitem__(self, idx):
         image_path = os.path.join(self.image_dir, self.image_file_list[idx])
-        annotation_path = os.path.join(self.annotation_dir, self.annotation_file_list[idx])
+        img_id = self.image_file_list[idx].split('.png')[0]
+        annotation_path = os.path.join(self.annotation_dir, f'{img_id}.pkl')
         
         image = cv2.imread(image_path)
         height, width = image.shape[:2]
@@ -74,7 +75,9 @@ class HubMapDataset:
         
         objs = []
         for orig_annot in orig_annots:
-            orig_annot['bbox_mode'] = BoxMode.XYWH_ABS
+            bbox = orig_annot['bbox']
+            orig_annot['bbox'] = [bbox[0], bbox[1], bbox[0]+bbox[2], bbox[1]+bbox[3]]
+            orig_annot['bbox_mode'] = BoxMode.XYXY_ABS
             objs.append(orig_annot)
             
         record['annotations'] = objs
