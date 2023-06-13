@@ -15,8 +15,10 @@
 *.pyc
 *.pkl
 *ec2.internal*
+*.whl
 detectron2/
 .ipynb_checkpoints
 models/
 full_training_data/
 map_input_data/
+dataset1_files/
