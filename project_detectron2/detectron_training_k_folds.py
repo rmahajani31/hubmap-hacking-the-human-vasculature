@@ -106,7 +106,7 @@ class CustomArguments:
 
 # arguments
 num_folds = 5
-config_file = '/home/ec2-user/hubmap-hacking-the-human-vasculature/detectron2/configs/COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml'
+config_file = '/home/ec2-user/hubmap-hacking-the-human-vasculature/detectron2/configs/COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml'
 base_dataset_path = '/home/ec2-user/hubmap-hacking-the-human-vasculature/dataset1_files'
 base_dataset_name = 'hubmap-dataset1'
 num_machines = 1
@@ -124,7 +124,7 @@ opts = []
 
 # Setup the config
 cfg = get_cfg()
-cfg.merge_from_file(model_zoo.get_config_file('COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml'))
+cfg.merge_from_file(model_zoo.get_config_file('COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml'))
 cfg.DATASETS.TRAIN = ()
 cfg.DATASETS.TEST = ()
 # cfg.INPUT.MIN_SIZE_TRAIN = (256,350,480,512)  # Minimum input image size during training
@@ -133,7 +133,7 @@ cfg.INPUT.MAX_SIZE_TRAIN = 800     # Maximum input image size during training
 cfg.INPUT.MIN_SIZE_TEST = (512,)      # Minimum input image size during testing
 cfg.INPUT.MAX_SIZE_TEST = 512      # Maximum input image size during testing
 cfg.DATALOADER.NUM_WORKERS = 4
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url('COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml')
+cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url('COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml')
 # cfg.MODEL.WEIGHTS = '/home/ec2-user/hubmap-hacking-the-human-vasculature/project_detectron2/output/inference/best_model_fold_0_with_added_aug_lr_0.00025.pth'
 cfg.SOLVER.IMS_PER_BATCH = 16
 cfg.SOLVER.BASE_LR = 0.00025
@@ -252,7 +252,7 @@ for i in range(num_folds):
     iterations_per_epoch = len(train_dataset) // cfg.SOLVER.IMS_PER_BATCH
     num_epochs = max_iter // iterations_per_epoch
     num_iterations_to_show_stats = 50
-    max_ap_50 = 0
+    max_ap = 0
     loss_stats = {'total_loss': [], 'loss_cls': [], 'loss_box_reg': [], 'loss_mask': [], 'loss_rpn_cls': [], 'loss_rpn_loc': []}
     with open(f'{output_dir}/model_stats_detectron_dataset1_fold_{i}.txt', 'a') as f:
         f.write(f'Epoch info is - num_epochs: {num_epochs}, max_iter: {max_iter}, train_dataset_len: {len(train_dataset)}, iterations_per_epoch: {iterations_per_epoch}, num_iterations_to_show_stats: {num_iterations_to_show_stats}\n')
@@ -304,8 +304,8 @@ for i in range(num_folds):
                 for loss_key in loss_stats.keys():
                     loss_str += f'{loss_key} - {np.mean(loss_stats[loss_key])}, '
                     loss_stats[loss_key] = []
-                if 'segm' in metrics and metrics['segm']['AP50'] > max_ap_50:
-                    max_ap_50 = metrics['segm']['AP50']
+                if 'segm' in metrics and metrics['segm']['AP'] > max_ap and metrics['segm']['AP']-max_ap >= 1:
+                    max_ap = metrics['segm']['AP']
                     torch.save(model.state_dict(), f'{output_dir}/best_model_fold_{i}.pth')
                     with open(f'{output_dir}/best_model_stats_detectron_dataset1_fold_{i}.txt', 'w') as f:
                         f.write(f'{metrics_str}\n{loss_str}\n')
