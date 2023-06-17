@@ -17,6 +17,7 @@
 *ec2.internal*
 *.whl
 detectron2/
+Mask2Former/
 .ipynb_checkpoints
 models/
 full_training_data/
