@@ -1,7 +1,5 @@
 # Imports
 import sys
-sys.path.insert(0, '/home/ec2-user/hubmap-hacking-the-human-vasculature/Mask2Former')
-
 import logging
 import os
 from collections import OrderedDict
@@ -41,27 +39,51 @@ from detectron2.data import DatasetMapper
 import detectron2.data.transforms as T
 from detectron2 import model_zoo
 import numpy as np
+from shapely.geometry import Polygon
 
-from mask2former import (
-    COCOInstanceNewBaselineDatasetMapper,
-    COCOPanopticNewBaselineDatasetMapper,
-    InstanceSegEvaluator,
-    MaskFormerInstanceDatasetMapper,
-    MaskFormerPanopticDatasetMapper,
-    MaskFormerSemanticDatasetMapper,
-    SemanticSegmentorWithTTA,
-    add_maskformer2_config,
-)
+
 # In[2]:
+
+def calculate_area(coordinates):
+    num_points = len(coordinates)
+    if num_points < 3:
+        return 0
+    area = 0
+    for i in range(num_points - 1):
+        x_i, y_i = coordinates[i]
+        x_iplus1, y_iplus1 = coordinates[i + 1]
+        area += (x_i * y_iplus1) - (x_iplus1 * y_i)
+    x_n, y_n = coordinates[-1]
+    x_0, y_0 = coordinates[0]
+    area += (x_n * y_0) - (x_0 * y_n)
+    area = abs(area / 2)
+    return area
+
+def dilate_polygon(coordinates, dilation_factor, image_width, image_height):
+    polygon = Polygon(np.array(coordinates).reshape(-1, 2))
+    buffered_polygon = polygon.buffer(dilation_factor, join_style=2)
+    clipped_polygon = buffered_polygon.intersection(Polygon([(0, 0), (image_width, 0), (image_width, image_height), (0, image_height)]))
+    dilated_coordinates = np.array(clipped_polygon.exterior.coords).ravel().tolist()
+    dilated_coordinates = np.round(dilated_coordinates).astype(np.int32)
+    coords = [[pt[0], pt[1]] for pt in zip(dilated_coordinates[::2], dilated_coordinates[1::2])]
+    segmentations = [[pt for pair in coords for pt in pair]]
+    segmentation_area = calculate_area(coords)
+    min_x = min(coords, key=lambda x: x[0])[0]
+    max_x = max(coords, key=lambda x: x[0])[0]
+    min_y = min(coords, key=lambda x: x[1])[1]
+    max_y = max(coords, key=lambda x: x[1])[1]
+    segmentation_bbox = [min_x, min_y, max_x-min_x, max_y-min_y]
+    return segmentations, segmentation_bbox, segmentation_area
 
 
 # Custom HubMap Dataset
 class HubMapDataset:
-    def __init__(self, image_dir, annotation_dir):
+    def __init__(self, image_dir, annotation_dir, dilation_factor=None):
         self.image_dir = image_dir
         self.annotation_dir = annotation_dir
         self.image_file_list = sorted(os.listdir(self.image_dir))
         self.annotation_file_list = os.listdir(self.annotation_dir)
+        self.dilation_factor = dilation_factor
         
     def __len__(self):
         return len(self.image_file_list)
@@ -86,6 +108,11 @@ class HubMapDataset:
         
         objs = []
         for orig_annot in orig_annots:
+            if self.dilation_factor is not None:
+                segmentations, segmentation_bbox, segmentation_area = dilate_polygon(orig_annot['segmentation'][0], self.dilation_factor, 512, 512)
+                orig_annot['segmentation'] = segmentations
+                orig_annot['bbox'] = segmentation_bbox
+                orig_annot['area'] = segmentation_area
             bbox = orig_annot['bbox']
             orig_annot['bbox'] = [bbox[0], bbox[1], bbox[0]+bbox[2], bbox[1]+bbox[3]]
             orig_annot['bbox_mode'] = BoxMode.XYXY_ABS
@@ -98,8 +125,8 @@ class HubMapDataset:
 
 # Function to register a dataset
 CLASSES = ['blood_vessel']
-def register_custom_dataset(dataset_name, image_dir, annotation_dir):
-    DatasetCatalog.register(dataset_name, lambda: HubMapDataset(image_dir, annotation_dir))
+def register_custom_dataset(dataset_name, image_dir, annotation_dir, dilation_factor=None):
+    DatasetCatalog.register(dataset_name, lambda: HubMapDataset(image_dir, annotation_dir, dilation_factor=dilation_factor))
     MetadataCatalog.get(dataset_name).set(thing_classes=CLASSES, evaluator_type="coco")
 
 
@@ -116,8 +143,8 @@ class CustomArguments:
 
 
 # arguments
-num_folds = 5
-config_file = '/home/ec2-user/hubmap-hacking-the-human-vasculature/Mask2Former/configs/coco/instance-segmentation/maskformer2_R50_bs16_50ep.yaml'
+num_dilation_factors = [2,3,4]
+config_file = '/home/ec2-user/hubmap-hacking-the-human-vasculature/detectron2/configs/COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml'
 base_dataset_path = '/home/ec2-user/hubmap-hacking-the-human-vasculature/dataset1_files'
 base_dataset_name = 'hubmap-dataset1'
 num_machines = 1
@@ -135,8 +162,7 @@ opts = []
 
 # Setup the config
 cfg = get_cfg()
-add_maskformer2_config(cfg)
-cfg.merge_from_file(config_file)
+cfg.merge_from_file(model_zoo.get_config_file('COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml'))
 cfg.DATASETS.TRAIN = ()
 cfg.DATASETS.TEST = ()
 # cfg.INPUT.MIN_SIZE_TRAIN = (256,350,480,512)  # Minimum input image size during training
@@ -145,7 +171,7 @@ cfg.INPUT.MAX_SIZE_TRAIN = 800     # Maximum input image size during training
 cfg.INPUT.MIN_SIZE_TEST = (512,)      # Minimum input image size during testing
 cfg.INPUT.MAX_SIZE_TEST = 512      # Maximum input image size during testing
 cfg.DATALOADER.NUM_WORKERS = 4
-# cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url('COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml')
+cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url('COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml')
 # cfg.MODEL.WEIGHTS = '/home/ec2-user/hubmap-hacking-the-human-vasculature/project_detectron2/output/inference/best_model_fold_0_with_added_aug_lr_0.00025.pth'
 cfg.SOLVER.IMS_PER_BATCH = 16
 cfg.SOLVER.BASE_LR = 0.00025
@@ -225,26 +251,25 @@ writers = default_writers(cfg.OUTPUT_DIR, max_iter) if comm.is_main_process() el
 
 output_dir = os.path.join(cfg.OUTPUT_DIR, "inference")
 
-for i in range(num_folds):
-    if os.path.exists(f'{output_dir}/model_stats_detectron_dataset1_fold_{i}.txt'):
-        os.remove(f'{output_dir}/model_stats_detectron_dataset1_fold_{i}.txt')
+for i in range(len(num_dilation_factors)):
+    if os.path.exists(f'{output_dir}/model_stats_detectron_dataset1_type_{i}.txt'):
+        os.remove(f'{output_dir}/model_stats_detectron_dataset1_type_{i}.txt')
+for i in range(len(num_dilation_factors)):
+    if os.path.exists(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-train-type-{i}')):
+        shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-train-type-{i}'))
+    if os.path.exists(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-type-{i}')):
+        shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-type-{i}'))
 
-for i in range(num_folds):
-    if os.path.exists(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-train-fold-{i}')):
-        shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-train-fold-{i}'))
-    if os.path.exists(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}')):
-        shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}'))
-
-for i in range(num_folds):
-    register_custom_dataset(f'{base_dataset_name}-train-fold-{i}', f'{base_dataset_path}/all_dataset1_imgs_merged_train_{i}', f'{base_dataset_path}/all_dataset1_annotations_merged_train_{i}')
-    register_custom_dataset(f'{base_dataset_name}-validation-fold-{i}', f'{base_dataset_path}/all_dataset1_imgs_merged_validation_{i}', f'{base_dataset_path}/all_dataset1_annotations_merged_validation_{i}')
-
-for i in range(num_folds):
-    train_dataset = DatasetCatalog.get(f'{base_dataset_name}-train-fold-{i}')
+for i in range(len(num_dilation_factors)):
+    dilation_factor = num_dilation_factors[i]
+    register_custom_dataset(f'{base_dataset_name}-train-type-{i}', f'{base_dataset_path}/all_dataset1_imgs_merged_train_0', f'{base_dataset_path}/all_dataset1_annotations_merged_train_0', dilation_factor=dilation_factor)
+    register_custom_dataset(f'{base_dataset_name}-validation-type-{i}', f'{base_dataset_path}/all_dataset1_imgs_merged_validation_0', f'{base_dataset_path}/all_dataset1_annotations_merged_validation_0')
+    
+    train_dataset = DatasetCatalog.get(f'{base_dataset_name}-train-type-{i}')
     train_data_loader = build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations=data_transforms), dataset=train_dataset)
-    validation_data_loader = build_detection_test_loader(cfg, f'{base_dataset_name}-validation-fold-{i}')
+    validation_data_loader = build_detection_test_loader(cfg, f'{base_dataset_name}-validation-type-{i}')
     evaluator = get_evaluator(
-        cfg, f'{base_dataset_name}-validation-fold-{i}', os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}')
+        cfg, f'{base_dataset_name}-validation-type-{i}', os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-type-{i}')
     )
     
     model = build_model(cfg)
@@ -266,7 +291,7 @@ for i in range(num_folds):
     num_iterations_to_show_stats = 50
     max_ap = 0
     loss_stats = {'total_loss': [], 'loss_cls': [], 'loss_box_reg': [], 'loss_mask': [], 'loss_rpn_cls': [], 'loss_rpn_loc': []}
-    with open(f'{output_dir}/model_stats_detectron_dataset1_fold_{i}.txt', 'a') as f:
+    with open(f'{output_dir}/model_stats_detectron_dataset1_type_{i}.txt', 'a') as f:
         f.write(f'Epoch info is - num_epochs: {num_epochs}, max_iter: {max_iter}, train_dataset_len: {len(train_dataset)}, iterations_per_epoch: {iterations_per_epoch}, num_iterations_to_show_stats: {num_iterations_to_show_stats}\n')
     # Training Loop
     with EventStorage(start_iter) as storage:
@@ -318,9 +343,9 @@ for i in range(num_folds):
                     loss_stats[loss_key] = []
                 if 'segm' in metrics and metrics['segm']['AP'] > max_ap and metrics['segm']['AP']-max_ap >= 1:
                     max_ap = metrics['segm']['AP']
-                    torch.save(model.state_dict(), f'{output_dir}/best_model_fold_{i}.pth')
-                    with open(f'{output_dir}/best_model_stats_detectron_dataset1_fold_{i}.txt', 'w') as f:
+                    torch.save(model.state_dict(), f'{output_dir}/best_model_type_{i}.pth')
+                    with open(f'{output_dir}/best_model_stats_detectron_dataset1_type_{i}.txt', 'w') as f:
                         f.write(f'{metrics_str}\n{loss_str}\n')
-                with open(f'{output_dir}/model_stats_detectron_dataset1_fold_{i}.txt', 'a') as f:
+                with open(f'{output_dir}/model_stats_detectron_dataset1_type_{i}.txt', 'a') as f:
                     f.write(f'{metrics_str}\n{loss_str}\n')
                 start_time = time.time()
