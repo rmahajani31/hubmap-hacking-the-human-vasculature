@@ -84,6 +84,34 @@ class HubMapDataset:
         
         return record
 
+class CustomCOCOEvaluator(COCOEvaluator):
+    def __init__(self, dataset_name, output_dir=None):
+        super().__init__(dataset_name, output_dir=output_dir)
+        
+        # Define the region of interest (ROI) coordinates
+        self.roi_x_min = 512  # Minimum X-coordinate of the ROI
+        self.roi_x_max = 512*2  # Maximum X-coordinate of the ROI
+        self.roi_y_min = 512  # Minimum Y-coordinate of the ROI
+        self.roi_y_max = 512*2  # Maximum Y-coordinate of the ROI
+    
+    def process(self, inputs, outputs):
+        # Filter bounding boxes within the ROI
+        filtered_outputs = []
+        for output in outputs:
+            boxes = output["instances"].pred_boxes.tensor
+            filtered_boxes = []
+            for box in boxes:
+                x_min, y_min, x_max, y_max = box.tolist()
+                if x_max >= self.roi_x_min and x_min <= self.roi_x_max and y_max >= self.roi_y_min and y_min <= self.roi_y_max:
+                    filtered_boxes.append(box)
+            
+            if len(filtered_boxes) > 0:
+                output["instances"].pred_boxes.tensor = torch.stack(filtered_boxes)
+                filtered_outputs.append(output)
+        
+        # Perform evaluation on filtered outputs
+        super().process(inputs, filtered_outputs)
+
 
 # Function to register a dataset
 CLASSES = ['blood_vessel']
@@ -105,8 +133,8 @@ class CustomArguments:
 
 
 # arguments
-num_folds = 5
-config_file = '/home/ec2-user/hubmap-hacking-the-human-vasculature/detectron2/configs/COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml'
+num_folds = 1
+config_file = '/home/ec2-user/hubmap-hacking-the-human-vasculature/detectron2/configs/COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml'
 base_dataset_path = '/home/ec2-user/hubmap-hacking-the-human-vasculature/dataset1_files'
 base_dataset_name = 'hubmap-dataset1'
 num_machines = 1
@@ -124,22 +152,23 @@ opts = []
 
 # Setup the config
 cfg = get_cfg()
-cfg.merge_from_file(model_zoo.get_config_file('COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml'))
+cfg.merge_from_file(model_zoo.get_config_file('COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml'))
 cfg.DATASETS.TRAIN = ()
 cfg.DATASETS.TEST = ()
 # cfg.INPUT.MIN_SIZE_TRAIN = (256,350,480,512)  # Minimum input image size during training
-cfg.INPUT.MIN_SIZE_TRAIN = (350, 480, 512, 672, 736, 800)
-cfg.INPUT.MAX_SIZE_TRAIN = 800     # Maximum input image size during training
-cfg.INPUT.MIN_SIZE_TEST = (512,)      # Minimum input image size during testing
-cfg.INPUT.MAX_SIZE_TEST = 512      # Maximum input image size during testing
+cfg.INPUT.MIN_SIZE_TRAIN = (1536,)
+cfg.INPUT.MAX_SIZE_TRAIN = 1536     # Maximum input image size during training
+cfg.INPUT.MIN_SIZE_TEST = (1536,)      # Minimum input image size during testing
+cfg.INPUT.MAX_SIZE_TEST = 1536     # Maximum input image size during testing
 cfg.DATALOADER.NUM_WORKERS = 4
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url('COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml')
+cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url('COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml')
 # cfg.MODEL.WEIGHTS = '/home/ec2-user/hubmap-hacking-the-human-vasculature/project_detectron2/output/inference/best_model_fold_0_with_added_aug_lr_0.00025.pth'
 cfg.SOLVER.IMS_PER_BATCH = 16
 cfg.SOLVER.BASE_LR = 0.00025
 # cfg.SOLVER.BASE_LR = 0.002
 cfg.SOLVER.MAX_ITER = 6000
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(CLASSES)
+cfg.MODEL.DEVICE = 'cpu'
 # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
 
 
@@ -185,7 +214,7 @@ def get_evaluator(cfg, dataset_name, output_folder=None):
             )
         )
     if evaluator_type in ["coco", "coco_panoptic_seg"]:
-        evaluator_list.append(COCOEvaluator(dataset_name, output_dir=output_folder))
+        evaluator_list.append(CustomCOCOEvaluator(dataset_name, output_dir=output_folder))
     if evaluator_type == "coco_panoptic_seg":
         evaluator_list.append(COCOPanopticEvaluator(dataset_name, output_folder))
     if evaluator_type == "cityscapes_instance":
@@ -224,12 +253,12 @@ for i in range(num_folds):
         shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}'))
 
 for i in range(num_folds):
-    register_custom_dataset(f'{base_dataset_name}-train-fold-{i}', f'{base_dataset_path}/all_dataset1_imgs_merged_train_{i}', f'{base_dataset_path}/all_dataset1_annotations_merged_train_{i}')
-    register_custom_dataset(f'{base_dataset_name}-validation-fold-{i}', f'{base_dataset_path}/all_dataset1_imgs_merged_validation_{i}', f'{base_dataset_path}/all_dataset1_annotations_merged_validation_{i}')
+    register_custom_dataset(f'{base_dataset_name}-train-fold-{i}', f'{base_dataset_path}/sample_train_imgs_context_fold_{i}', f'{base_dataset_path}/sample_train_annotations_context_fold_{i}')
+    register_custom_dataset(f'{base_dataset_name}-validation-fold-{i}', f'{base_dataset_path}/sample_validation_imgs_context_fold_{i}', f'{base_dataset_path}/sample_validation_annotations_context_fold_{i}')
 
 for i in range(num_folds):
     train_dataset = DatasetCatalog.get(f'{base_dataset_name}-train-fold-{i}')
-    train_data_loader = build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations=data_transforms), dataset=train_dataset)
+    train_data_loader = build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True), dataset=train_dataset)
     validation_data_loader = build_detection_test_loader(cfg, f'{base_dataset_name}-validation-fold-{i}')
     evaluator = get_evaluator(
         cfg, f'{base_dataset_name}-validation-fold-{i}', os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}')
