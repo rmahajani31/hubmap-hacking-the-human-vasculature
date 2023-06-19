@@ -84,59 +84,6 @@ class HubMapDataset:
         
         return record
 
-class CustomCOCOEvaluator(COCOEvaluator):
-    def __init__(self, dataset_name, output_dir=None):
-        super().__init__(dataset_name, output_dir=output_dir)
-        
-        # Define the region of interest (ROI) coordinates
-        self.roi_x_min = 512  # Minimum X-coordinate of the ROI
-        self.roi_x_max = 512*2  # Maximum X-coordinate of the ROI
-        self.roi_y_min = 512  # Minimum Y-coordinate of the ROI
-        self.roi_y_max = 512*2  # Maximum Y-coordinate of the ROI
-    
-    def process(self, inputs, outputs):
-        # Filter bounding boxes within the ROI
-        filtered_outputs = []
-        for output in outputs:
-            boxes = output["instances"].pred_boxes.tensor
-            scores = output["instances"].scores
-            classes = output["instances"].pred_classes
-            masks = output["instances"].pred_masks
-            filtered_boxes = []
-            filtered_scores = []
-            filtered_classes = []
-            filtered_masks = []
-            for idx, box in enumerate(boxes):
-                x_min, y_min, x_max, y_max = box.tolist()
-                
-                # Calculate the overlap area between the bounding box and the ROI
-                intersection_x_min = max(x_min, self.roi_x_min)
-                intersection_y_min = max(y_min, self.roi_y_min)
-                intersection_x_max = min(x_max, self.roi_x_max)
-                intersection_y_max = min(y_max, self.roi_y_max)
-                intersection_area = max(0, intersection_x_max - intersection_x_min) * max(0, intersection_y_max - intersection_y_min)
-
-                # Calculate the bounding box area
-                box_area = (x_max - x_min) * (y_max - y_min)
-
-                # Check if the overlap area is greater than 90% of the bounding box area
-                if intersection_area >= 0.9 * box_area:
-                    filtered_boxes.append(box)
-                    filtered_scores.append(scores[idx])
-                    filtered_classes.append(classes[idx])
-                    filtered_masks.append(masks[idx, :, :])
-            
-            if len(filtered_boxes) > 0:
-                output["instances"].pred_boxes.tensor = torch.stack(filtered_boxes)
-                output["instances"].scores = torch.tensor(filtered_scores, dtype=torch.float32)
-                output["instances"].pred_classes = torch.tensor(filtered_classes, dtype=torch.int64)
-                output["instances"].pred_masks = torch.stack(filtered_masks, dim=0)
-                filtered_outputs.append(output)
-        
-        # Perform evaluation on filtered outputs
-        super().process(inputs, filtered_outputs)
-
-
 # Function to register a dataset
 CLASSES = ['blood_vessel']
 def register_custom_dataset(dataset_name, image_dir, annotation_dir):
@@ -180,81 +127,28 @@ cfg.merge_from_file(model_zoo.get_config_file('COCO-InstanceSegmentation/mask_rc
 cfg.DATASETS.TRAIN = ()
 cfg.DATASETS.TEST = ()
 # cfg.INPUT.MIN_SIZE_TRAIN = (256,350,480,512)  # Minimum input image size during training
-cfg.INPUT.MIN_SIZE_TRAIN = (1536,)
-cfg.INPUT.MAX_SIZE_TRAIN = 1536     # Maximum input image size during training
-cfg.INPUT.MIN_SIZE_TEST = (1536,)      # Minimum input image size during testing
-cfg.INPUT.MAX_SIZE_TEST = 1536     # Maximum input image size during testing
+cfg.INPUT.MIN_SIZE_TRAIN = (512,)
+cfg.INPUT.MAX_SIZE_TRAIN = 512     # Maximum input image size during training
+cfg.INPUT.MIN_SIZE_TEST = (512,)      # Minimum input image size during testing
+cfg.INPUT.MAX_SIZE_TEST = 512     # Maximum input image size during testing
 cfg.DATALOADER.NUM_WORKERS = 4
 cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url('COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml')
 # cfg.MODEL.WEIGHTS = '/home/ec2-user/hubmap-hacking-the-human-vasculature/project_detectron2/output/inference/best_model_fold_0_with_added_aug_lr_0.00025.pth'
-cfg.SOLVER.IMS_PER_BATCH = 4
-cfg.SOLVER.BASE_LR = 0.00025
+cfg.SOLVER.IMS_PER_BATCH = 16
+# cfg.SOLVER.BASE_LR = 0.00025
 #cfg.SOLVER.BASE_LR = 0.0025
 cfg.SOLVER.MAX_ITER = 6000
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(CLASSES)
+cfg.MODEL.RPN.PRE_NMS_TOPK_TRAIN = 10000
+cfg.MODEL.RPN.POST_NMS_TOPK_TRAIN = 5000
+cfg.MODEL.RPN.PRE_NMS_TOPK_TEST = 5000
+cfg.MODEL.RPN.POST_NMS_TOPK_TEST = 5000
+# cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[4], [6], [8], [12], [16]]
 # cfg.MODEL.DEVICE = 'cpu'
 # cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
 
 
 # In[8]:
-
-def roll_with_zeros(array, shift, axes=[]):
-    # Iterate over each axis and perform the roll with zeros
-    rolled_array = np.copy(array)
-    shift_y, shift_x = shift
-    if shift_y >= 0:
-        rolled_array = np.roll(rolled_array, shift_y, axis=0)
-        rolled_array[:shift_y, :, :] = 0
-    else:
-        rolled_array = np.roll(rolled_array, shift_y, axis=0)
-        rolled_array[shift_y:, :, :] = 0
-    if shift_x >= 0:
-        rolled_array = np.roll(rolled_array, shift_x, axis=1)
-        rolled_array[:, :shift_x, :] = 0
-    else:
-        rolled_array = np.roll(rolled_array, shift_x, axis=1)
-        rolled_array[:, shift_x:, :] = 0
-    return rolled_array
-
-class ShiftTransform(T.Transform):
-    def __init__(self, shift_x, shift_y, output_size):
-        super().__init__()
-        self.shift_x = shift_x
-        self.shift_y = shift_y
-        self.output_size = output_size
-
-    def apply_image(self, image):
-        image = roll_with_zeros(image, (self.shift_y, self.shift_x), axes=(0, 1))
-        return image
-
-    def apply_segmentation(self, segmentation):
-        segmentation = roll_with_zeros(segmentation, (self.shift_y, self.shift_x), axes=(0, 1))
-        return segmentation
-
-    def apply_coords(self, coords):
-        coords[:, 0] += self.shift_x
-        coords[:, 1] += self.shift_y
-        
-        height, width = self.output_size
-        
-        # Clip coordinates to stay within image bounds
-        coords[:, 0] = np.clip(coords[:, 0], 0, width - 1)
-        coords[:, 1] = np.clip(coords[:, 1], 0, height - 1)
-
-        return coords
-
-class ShiftAug(T.Augmentation):
-    def __init__(self, shift_x_range, shift_y_range, output_size):
-        super().__init__()
-        self.shift_x_start, self.shift_x_end = shift_x_range
-        self.shift_y_start, self.shift_y_end = shift_y_range
-        self.output_size = output_size
-
-    def get_transform(self, image):
-        cur_shift_x = np.random.randint(self.shift_x_start, self.shift_x_end + 1)
-        cur_shift_y = np.random.randint(self.shift_y_start, self.shift_y_end + 1)
-        return ShiftTransform(cur_shift_x, cur_shift_y, self.output_size)
-
 # compared to "train_net.py", we do not support accurate timing and
 # precise BN here, because they are not trivial to implement in a small training loop
 prob = 0.5
@@ -326,7 +220,7 @@ max_iter = cfg.SOLVER.MAX_ITER
 writers = default_writers(cfg.OUTPUT_DIR, max_iter) if comm.is_main_process() else []
 
 output_dir = os.path.join(cfg.OUTPUT_DIR, "inference")
-gradient_accumulation_steps = 5
+gradient_accumulation_steps = 1
 
 for i in range(num_folds):
     if os.path.exists(f'{output_dir}/model_stats_detectron_dataset1_fold_{i}.txt'):
@@ -337,28 +231,23 @@ for i in range(num_folds):
         shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-train-fold-{i}'))
     if os.path.exists(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}')):
         shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}'))
-    if os.path.exists(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}-custom')):
-        shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}-custom'))
 
 for i in range(num_folds):
-    register_custom_dataset(f'{base_dataset_name}-train-fold-{i}', f'{base_dataset_path}/all_dataset1_train_imgs_context_fold_{i}', f'{base_dataset_path}/all_dataset1_train_annotations_context_fold_{i}')
-    register_custom_dataset(f'{base_dataset_name}-validation-fold-{i}', f'{base_dataset_path}/all_dataset1_validation_imgs_context_fold_{i}', f'{base_dataset_path}/all_dataset1_validation_annotations_context_fold_{i}')
-    register_custom_dataset(f'{base_dataset_name}-validation-fold-{i}-custom', f'{base_dataset_path}/all_dataset1_validation_imgs_context_fold_{i}', f'{base_dataset_path}/all_dataset1_validation_custom_annotations_context_fold_{i}')
+    register_custom_dataset(f'{base_dataset_name}-train-fold-{i}', f'{base_dataset_path}/all_dataset1_imgs_merged_train_{i}', f'{base_dataset_path}/all_dataset1_annotations_merged_train_{i}')
+    register_custom_dataset(f'{base_dataset_name}-validation-fold-{i}', f'{base_dataset_path}/all_dataset1_imgs_merged_validation_{i}', f'{base_dataset_path}/all_dataset1_annotations_merged_validation_{i}')
 
 for i in range(num_folds):
     train_dataset = DatasetCatalog.get(f'{base_dataset_name}-train-fold-{i}')
     train_data_loader = build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations=data_transforms), dataset=train_dataset)
     validation_data_loader = build_detection_test_loader(cfg, f'{base_dataset_name}-validation-fold-{i}')
-    custom_validation_data_loader = build_detection_test_loader(cfg, f'{base_dataset_name}-validation-fold-{i}-custom')
     evaluator = COCOEvaluator(f'{base_dataset_name}-validation-fold-{i}', output_dir=os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}'))
-    custom_evaluator = CustomCOCOEvaluator(f'{base_dataset_name}-validation-fold-{i}-custom', output_dir=os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}-custom'))
     model = build_model(cfg)
     model.train()
-    if i == 0:
-        resume = True
-        cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "inference/best_model_fold_0_context_with_aug_lr_0.000025.pth")
-    else:
-        resume = False
+    # if i == 0:
+    #     resume = True
+    #     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "inference/best_model_fold_0_context_with_aug_lr_0.000025.pth")
+    # else:
+    resume = False
     optimizer = build_optimizer(cfg, model)
     scheduler = build_lr_scheduler(cfg, optimizer)
     checkpointer = DetectionCheckpointer(
@@ -413,10 +302,8 @@ for i in range(num_folds):
         
             if (iteration+1) % num_iterations_to_show_stats == 0:
                 metrics = inference_on_dataset(model, validation_data_loader, evaluator)
-                custom_metrics = inference_on_dataset(model, custom_validation_data_loader, custom_evaluator)
                 print('===========')
                 print(metrics)
-                print(custom_metrics)
                 print('===========')
                 metrics_str = ''
                 for task, task_metrics in metrics.items():
@@ -425,18 +312,12 @@ for i in range(num_folds):
                         task_str += f'{metric}={value:.4f}, '
                     metrics_str += task_str.rstrip(', ') + '\n'
                 metrics_str = f'Iteration: {iteration}, time_taken: {float(time.time()-start_time)/60} minutes --> {metrics_str}'
-                metrics_str += '\n===Custom Metrics=== '
-                for task, task_metrics in custom_metrics.items():
-                    task_str = f'{task}: '
-                    for metric, value in task_metrics.items():
-                        task_str += f'{metric}={value:.4f}, '
-                    metrics_str += task_str.rstrip(', ') + '\n'
                 loss_str = ''
                 for loss_key in loss_stats.keys():
                     loss_str += f'{loss_key} - {np.mean(loss_stats[loss_key])}, '
                     loss_stats[loss_key] = []
-                if 'segm' in custom_metrics and custom_metrics['segm']['AP'] > max_ap and custom_metrics['segm']['AP']-max_ap >= 1:
-                    max_ap = custom_metrics['segm']['AP']
+                if 'segm' in metrics and metrics['segm']['AP'] > max_ap and metrics['segm']['AP']-max_ap >= 1:
+                    max_ap = metrics['segm']['AP']
                     torch.save(model.state_dict(), f'{output_dir}/best_model_fold_{i}.pth')
                     with open(f'{output_dir}/best_model_stats_detectron_dataset1_fold_{i}.txt', 'w') as f:
                         f.write(f'{metrics_str}\n{loss_str}\n')

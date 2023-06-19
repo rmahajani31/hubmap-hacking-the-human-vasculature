@@ -1,6 +1,7 @@
 *.tif
 *.csv
 *.jsonl
+*.json
 *.png
 *.jpg
 *.zip

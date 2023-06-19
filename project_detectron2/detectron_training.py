@@ -134,16 +134,19 @@ cfg.DATASETS.TEST = (validation_dataset_name,)
 cfg.INPUT.MIN_SIZE_TRAIN = (512,)
 cfg.INPUT.MAX_SIZE_TRAIN = 512     # Maximum input image size during training
 cfg.INPUT.MIN_SIZE_TEST = (512,)      # Minimum input image size during testing
-cfg.INPUT.MAX_SIZE_TEST = 512      # Maximum input image size during testing
+cfg.INPUT.MAX_SIZE_TEST = 512     # Maximum input image size during testing
 cfg.DATALOADER.NUM_WORKERS = 4
 cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url('COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml')
 # cfg.MODEL.WEIGHTS = '/home/ec2-user/hubmap-hacking-the-human-vasculature/project_detectron2/output/inference/best_model_fold_0_with_added_aug_lr_0.00025.pth'
 cfg.SOLVER.IMS_PER_BATCH = 16
-cfg.SOLVER.BASE_LR = 0.00025
-# cfg.SOLVER.BASE_LR = 0.002
-cfg.SOLVER.MAX_ITER = 90000
+# cfg.SOLVER.BASE_LR = 0.00025
+#cfg.SOLVER.BASE_LR = 0.0025
+cfg.SOLVER.MAX_ITER = 6000
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(CLASSES)
-# cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
+cfg.MODEL.RPN.PRE_NMS_TOPK_TRAIN = 10000
+cfg.MODEL.RPN.POST_NMS_TOPK_TRAIN = 5000
+cfg.MODEL.RPN.PRE_NMS_TOPK_TEST = 5000
+cfg.MODEL.RPN.POST_NMS_TOPK_TEST = 5000
 
 
 # In[8]:
@@ -152,15 +155,21 @@ cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(CLASSES)
 # compared to "train_net.py", we do not support accurate timing and
 # precise BN here, because they are not trivial to implement in a small training loop
 prob = 0.5
+# data_transforms = [
+#     T.RandomApply(T.RandomRotation([-90,90], expand=False), prob=prob),
+#     T.RandomFlip(horizontal=True, vertical=False, prob=prob),
+#     T.RandomFlip(horizontal=False, vertical=True, prob=prob),
+#     T.RandomApply(T.RandomBrightness(0.8, 1.2), prob=prob),
+#     T.RandomApply(T.RandomContrast(0.8, 1.2), prob=prob),
+#     T.RandomApply(T.RandomSaturation(0.8,1.2), prob=prob),
+#     T.RandomApply(T.RandomCrop('relative', (0.8, 0.8)), prob=prob)
+# ]
+
 data_transforms = [
-    T.RandomApply(T.RandomRotation([-45,45], expand=False), prob=prob),
     T.RandomFlip(horizontal=True, vertical=False, prob=prob),
     T.RandomFlip(horizontal=False, vertical=True, prob=prob),
-    T.RandomApply(T.RandomBrightness(0.8, 1.2), prob=prob),
-    T.RandomApply(T.RandomContrast(0.8, 1.2), prob=prob),
-    T.RandomApply(T.RandomSaturation(0.8,1.2), prob=prob),
-    T.RandomApply(T.RandomCrop('relative', (0.8, 0.8)), prob=prob)
 ]
+
 
 # data_loader = build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations=data_transforms))
 
@@ -213,7 +222,7 @@ import time
 # Define the number of folds for cross-validation
 register_custom_dataset(train_dataset_name, train_image_dir, train_annotation_dir)
 register_custom_dataset(validation_dataset_name, validation_image_dir, validation_annotation_dir)
-train_data_loader = build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True))
+train_data_loader = build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations=data_transforms))
 validation_data_loader = build_detection_test_loader(cfg, validation_dataset_name)
 evaluator = get_evaluator(cfg, validation_dataset_name, os.path.join(cfg.OUTPUT_DIR, "inference", validation_dataset_name))
 train_dataset = DatasetCatalog.get(train_dataset_name)
@@ -231,8 +240,13 @@ if os.path.exists(os.path.join(cfg.OUTPUT_DIR, "inference", train_dataset_name))
 if os.path.exists(os.path.join(cfg.OUTPUT_DIR, "inference", validation_dataset_name)):
     shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", validation_dataset_name))
 
+gradient_accumulation_steps = 1
 model = build_model(cfg)
 model.train()
+# if i == 0:
+#     resume = True
+#     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "inference/best_model_fold_0_context_with_aug_lr_0.000025.pth")
+# else:
 resume = False
 optimizer = build_optimizer(cfg, model)
 scheduler = build_lr_scheduler(cfg, optimizer)
@@ -247,16 +261,14 @@ periodic_checkpointer = PeriodicCheckpointer(
 )
 iterations_per_epoch = len(train_dataset) // cfg.SOLVER.IMS_PER_BATCH
 num_epochs = max_iter // iterations_per_epoch
-num_iterations_to_show_stats = 200
-epoch = 0
-max_ap_50 = 0
+num_iterations_to_show_stats = 50
+max_ap = 0
 loss_stats = {'total_loss': [], 'loss_cls': [], 'loss_box_reg': [], 'loss_mask': [], 'loss_rpn_cls': [], 'loss_rpn_loc': []}
 with open(f'{output_dir}/model_stats_detectron_dataset1.txt', 'a') as f:
     f.write(f'Epoch info is - num_epochs: {num_epochs}, max_iter: {max_iter}, train_dataset_len: {len(train_dataset)}, iterations_per_epoch: {iterations_per_epoch}, num_iterations_to_show_stats: {num_iterations_to_show_stats}\n')
-
 # Training Loop
 with EventStorage(start_iter) as storage:
-    epoch_start_time = time.time()
+    start_time = time.time()
     for data, iteration in zip(train_data_loader, range(start_iter, max_iter)):
         storage.iter = iteration
 
@@ -273,11 +285,13 @@ with EventStorage(start_iter) as storage:
         if comm.is_main_process():
             storage.put_scalars(total_loss=losses_reduced, **loss_dict_reduced)
 
-        optimizer.zero_grad()
         losses.backward()
-        optimizer.step()
         storage.put_scalar("lr", optimizer.param_groups[0]["lr"], smoothing_hint=False)
-        scheduler.step()
+        
+        if (iteration + 1) % gradient_accumulation_steps == 0:
+            optimizer.step()
+            optimizer.zero_grad()
+            scheduler.step()
 
         if iteration - start_iter > 5 and (
             (iteration + 1) % 20 == 0 or iteration == max_iter - 1
@@ -297,17 +311,16 @@ with EventStorage(start_iter) as storage:
                 for metric, value in task_metrics.items():
                     task_str += f'{metric}={value:.4f}, '
                 metrics_str += task_str.rstrip(', ') + '\n'
-            metrics_str = f'Epoch {epoch}, Iteration: {iteration}, time_taken: {float(time.time()-epoch_start_time)/60} minutes --> {metrics_str}'
+            metrics_str = f'Iteration: {iteration}, time_taken: {float(time.time()-start_time)/60} minutes --> {metrics_str}'
             loss_str = ''
             for loss_key in loss_stats.keys():
                 loss_str += f'{loss_key} - {np.mean(loss_stats[loss_key])}, '
                 loss_stats[loss_key] = []
-            if 'segm' in metrics and metrics['segm']['AP50'] > max_ap_50:
-                max_ap_50 = metrics['segm']['AP50']
+            if 'segm' in metrics and metrics['segm']['AP'] > max_ap and metrics['segm']['AP']-max_ap >= 1:
+                max_ap = metrics['segm']['AP']
                 torch.save(model.state_dict(), f'{output_dir}/best_model.pth')
-                with open(f'{output_dir}/best_model_detectron_dataset1.txt', 'w') as f:
+                with open(f'{output_dir}/best_model_stats_detectron_dataset1.txt', 'w') as f:
                     f.write(f'{metrics_str}\n{loss_str}\n')
             with open(f'{output_dir}/model_stats_detectron_dataset1.txt', 'a') as f:
                 f.write(f'{metrics_str}\n{loss_str}\n')
-            epoch_start_time = time.time()
-            epoch += 1
+            start_time = time.time()
