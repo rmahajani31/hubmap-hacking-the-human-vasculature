@@ -189,7 +189,7 @@ cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url('COCO-InstanceSegmentation/mask
 # cfg.MODEL.WEIGHTS = '/home/ec2-user/hubmap-hacking-the-human-vasculature/project_detectron2/output/inference/best_model_fold_0_with_added_aug_lr_0.00025.pth'
 cfg.SOLVER.IMS_PER_BATCH = 4
 cfg.SOLVER.BASE_LR = 0.00025
-# cfg.SOLVER.BASE_LR = 0.002
+#cfg.SOLVER.BASE_LR = 0.0025
 cfg.SOLVER.MAX_ITER = 6000
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(CLASSES)
 # cfg.MODEL.DEVICE = 'cpu'
@@ -217,9 +217,11 @@ def roll_with_zeros(array, shift, axes=[]):
     return rolled_array
 
 class ShiftTransform(T.Transform):
-    def __init__(self, shift_x, shift_y):
+    def __init__(self, shift_x, shift_y, output_size):
+        super().__init__()
         self.shift_x = shift_x
         self.shift_y = shift_y
+        self.output_size = output_size
 
     def apply_image(self, image):
         image = roll_with_zeros(image, (self.shift_y, self.shift_x), axes=(0, 1))
@@ -232,21 +234,26 @@ class ShiftTransform(T.Transform):
     def apply_coords(self, coords):
         coords[:, 0] += self.shift_x
         coords[:, 1] += self.shift_y
+        
+        height, width = self.output_size
+        
+        # Clip coordinates to stay within image bounds
+        coords[:, 0] = np.clip(coords[:, 0], 0, width - 1)
+        coords[:, 1] = np.clip(coords[:, 1], 0, height - 1)
+
         return coords
 
-    def inverse(self):
-        return ShiftTransform(-self.shift_x, -self.shift_y)
-
 class ShiftAug(T.Augmentation):
-    def __init__(self, shift_x_range, shift_y_range):
+    def __init__(self, shift_x_range, shift_y_range, output_size):
+        super().__init__()
         self.shift_x_start, self.shift_x_end = shift_x_range
         self.shift_y_start, self.shift_y_end = shift_y_range
-        self._init(locals())
+        self.output_size = output_size
 
     def get_transform(self, image):
         cur_shift_x = np.random.randint(self.shift_x_start, self.shift_x_end + 1)
         cur_shift_y = np.random.randint(self.shift_y_start, self.shift_y_end + 1)
-        return ShiftTransform(cur_shift_x, cur_shift_y)
+        return ShiftTransform(cur_shift_x, cur_shift_y, self.output_size)
 
 # compared to "train_net.py", we do not support accurate timing and
 # precise BN here, because they are not trivial to implement in a small training loop
@@ -262,8 +269,6 @@ prob = 0.5
 # ]
 
 data_transforms = [
-    T.RandomApply(ShiftAug((-600,600), (-600, 600)), prob=prob),
-    T.RandomApply(T.RandomRotation([-180,180], expand=False), prob=prob),
     T.RandomFlip(horizontal=True, vertical=False, prob=prob),
     T.RandomFlip(horizontal=False, vertical=True, prob=prob),
 ]
@@ -321,6 +326,7 @@ max_iter = cfg.SOLVER.MAX_ITER
 writers = default_writers(cfg.OUTPUT_DIR, max_iter) if comm.is_main_process() else []
 
 output_dir = os.path.join(cfg.OUTPUT_DIR, "inference")
+gradient_accumulation_steps = 5
 
 for i in range(num_folds):
     if os.path.exists(f'{output_dir}/model_stats_detectron_dataset1_fold_{i}.txt'):
@@ -343,11 +349,16 @@ for i in range(num_folds):
     train_dataset = DatasetCatalog.get(f'{base_dataset_name}-train-fold-{i}')
     train_data_loader = build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations=data_transforms), dataset=train_dataset)
     validation_data_loader = build_detection_test_loader(cfg, f'{base_dataset_name}-validation-fold-{i}')
+    custom_validation_data_loader = build_detection_test_loader(cfg, f'{base_dataset_name}-validation-fold-{i}-custom')
     evaluator = COCOEvaluator(f'{base_dataset_name}-validation-fold-{i}', output_dir=os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}'))
     custom_evaluator = CustomCOCOEvaluator(f'{base_dataset_name}-validation-fold-{i}-custom', output_dir=os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}-custom'))
     model = build_model(cfg)
     model.train()
-    resume = False
+    if i == 0:
+        resume = True
+        cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, "inference/best_model_fold_0_context_with_aug_lr_0.000025.pth")
+    else:
+        resume = False
     optimizer = build_optimizer(cfg, model)
     scheduler = build_lr_scheduler(cfg, optimizer)
     checkpointer = DetectionCheckpointer(
@@ -385,11 +396,13 @@ for i in range(num_folds):
             if comm.is_main_process():
                 storage.put_scalars(total_loss=losses_reduced, **loss_dict_reduced)
 
-            optimizer.zero_grad()
             losses.backward()
-            optimizer.step()
             storage.put_scalar("lr", optimizer.param_groups[0]["lr"], smoothing_hint=False)
-            scheduler.step()
+            
+            if (iteration + 1) % gradient_accumulation_steps == 0:
+                optimizer.step()
+                optimizer.zero_grad()
+                scheduler.step()
 
             if iteration - start_iter > 5 and (
                 (iteration + 1) % 20 == 0 or iteration == max_iter - 1
@@ -400,7 +413,7 @@ for i in range(num_folds):
         
             if (iteration+1) % num_iterations_to_show_stats == 0:
                 metrics = inference_on_dataset(model, validation_data_loader, evaluator)
-                custom_metrics = inference_on_dataset(model, validation_data_loader, custom_evaluator)
+                custom_metrics = inference_on_dataset(model, custom_validation_data_loader, custom_evaluator)
                 print('===========')
                 print(metrics)
                 print(custom_metrics)
