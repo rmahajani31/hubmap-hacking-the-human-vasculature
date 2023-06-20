@@ -143,11 +143,12 @@ cfg.SOLVER.IMS_PER_BATCH = 16
 #cfg.SOLVER.BASE_LR = 0.0025
 cfg.SOLVER.MAX_ITER = 6000
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(CLASSES)
-cfg.MODEL.RPN.PRE_NMS_TOPK_TRAIN = 10000
-cfg.MODEL.RPN.POST_NMS_TOPK_TRAIN = 5000
-cfg.MODEL.RPN.PRE_NMS_TOPK_TEST = 5000
-cfg.MODEL.RPN.POST_NMS_TOPK_TEST = 5000
-
+# cfg.MODEL.RPN.PRE_NMS_TOPK_TRAIN = 10000
+# cfg.MODEL.RPN.POST_NMS_TOPK_TRAIN = 5000
+# cfg.MODEL.RPN.PRE_NMS_TOPK_TEST = 10000
+# cfg.MODEL.RPN.POST_NMS_TOPK_TEST = 5000
+# cfg.MODEL.DEVICE = 'cpu'
+# cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5
 
 # In[8]:
 
@@ -241,6 +242,7 @@ if os.path.exists(os.path.join(cfg.OUTPUT_DIR, "inference", validation_dataset_n
     shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", validation_dataset_name))
 
 gradient_accumulation_steps = 1
+chkp_period = 100
 model = build_model(cfg)
 model.train()
 # if i == 0:
@@ -321,6 +323,11 @@ with EventStorage(start_iter) as storage:
                 torch.save(model.state_dict(), f'{output_dir}/best_model.pth')
                 with open(f'{output_dir}/best_model_stats_detectron_dataset1.txt', 'w') as f:
                     f.write(f'{metrics_str}\n{loss_str}\n')
+            if (iteration+1) % chkp_period == 0:
+                torch.save(model.state_dict(), f'{output_dir}/best_model_{iteration}.pth')
+                with open(f'{output_dir}/best_model_stats_detectron_dataset1_{iteration}.txt', 'w') as f:
+                    f.write(f'{metrics_str}\n{loss_str}\n')
             with open(f'{output_dir}/model_stats_detectron_dataset1.txt', 'a') as f:
                 f.write(f'{metrics_str}\n{loss_str}\n')
             start_time = time.time()
+            
