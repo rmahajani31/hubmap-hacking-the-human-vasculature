@@ -17,6 +17,7 @@
 *.pkl
 *ec2.internal*
 *.whl
+*.pt
 detectron2/
 Mask2Former/
 .ipynb_checkpoints

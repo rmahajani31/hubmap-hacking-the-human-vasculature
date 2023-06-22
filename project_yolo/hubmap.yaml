@@ -1,0 +1,6 @@
+path: /home/rmahajani31/Projects/hubmap-hacking-the-human-vasculature/dataset1_files
+train: yolo_dataset1_train_0/images
+val: yolo_dataset1_validation_0/images
+
+nc: 1
+names: ['blood vessel']
