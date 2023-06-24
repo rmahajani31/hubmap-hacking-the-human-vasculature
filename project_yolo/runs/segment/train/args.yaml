@@ -1,13 +1,13 @@
 task: segment
 mode: train
-model: yolov8s-seg.pt
-data: hubmap.yaml
-epochs: 20
+model: yolov8m-seg.pt
+data: hubmap_multi_class_0.yaml
+epochs: 100
 patience: 50
 batch: 16
 imgsz: 512
 save: true
-save_period: 20
+save_period: 100
 cache: false
 device: cuda
 workers: 8
