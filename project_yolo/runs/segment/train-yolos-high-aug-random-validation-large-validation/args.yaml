@@ -2,12 +2,12 @@ task: segment
 mode: train
 model: yolov8s-seg.pt
 data: hubmap.yaml
-epochs: 100
+epochs: 20
 patience: 50
 batch: 16
 imgsz: 512
 save: true
-save_period: 5
+save_period: 100
 cache: false
 device: cuda
 workers: 8
@@ -94,4 +94,4 @@ copy_paste: 0.1
 cfg: null
 v5loader: false
 tracker: botsort.yaml
-save_dir: runs/segment/train2
+save_dir: runs/segment/train
