@@ -18,6 +18,7 @@
 *ec2.internal*
 *.whl
 *.pt
+*.yaml
 detectron2/
 Mask2Former/
 .ipynb_checkpoints
