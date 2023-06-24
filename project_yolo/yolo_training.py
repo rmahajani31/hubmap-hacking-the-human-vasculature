@@ -22,7 +22,7 @@ custom_config = {
  'mixup': 0.1,
  'copy_paste': 0.1}
 
-model_config = {'data': 'hubmap.yaml', 'epochs': 100, 'imgsz': 512, 'save': True, 'save_period': 5, 'plots': True, 'device': device}
+model_config = {'data': 'hubmap_multi_class.yaml', 'epochs': 25, 'imgsz': 512, 'save': True, 'save_period': 20, 'plots': True, 'device': device}
 model_config.update(custom_config)
 model.train(**model_config)
 
