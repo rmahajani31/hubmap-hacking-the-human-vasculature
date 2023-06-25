@@ -5,7 +5,7 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 num_folds = 1
 
 for i in range(num_folds):
-    model = YOLO('yolov8m-seg.pt')
+    #model = YOLO('yolov8m-seg.pt')
     # model = YOLO('/home/ec2-user/hubmap-hacking-the-human-vasculature/project_yolo/runs/segment/train-yolos-high-aug-random-validation-orig-dataset-large-validation-long-run/weights/last.pt')
     # model_config = {'data': 'hubmap.yaml', 'epochs': 100, 'imgsz': 512, 'save': True, 'save_period': 100, 'device': device, 'hsv_h': 0.0, 'hsv_s': 0.0, 'hsv_v': 0.0, 'translate': 0.0, 'scale': 0.0, 'flipud': 0.5, 'fliplr': 0.5, 'mosaic': 0.0, 'degrees': 0.0}
 
