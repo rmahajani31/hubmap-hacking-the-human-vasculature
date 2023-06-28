@@ -1,0 +1,6 @@
+--2023-06-28 07:56:57--  https://storage.googleapis.com/kaggle-competitions-data/kaggle-v2/52279/5822112/bundle/archive.zip?GoogleAccessId=web-data@kaggle-161607.iam.gserviceaccount.com
+Resolving storage.googleapis.com (storage.googleapis.com)... 172.253.63.128, 172.253.115.128, 172.253.122.128, ...
+Connecting to storage.googleapis.com (storage.googleapis.com)|172.253.63.128|:443... connected.
+HTTP request sent, awaiting response... 403 Forbidden
+2023-06-28 07:56:58 ERROR 403: Forbidden.
+
