@@ -2,7 +2,7 @@ from ultralytics import YOLO
 import torch
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-num_folds = 1
+num_folds = 5
 import gc
 
 for i in range(num_folds):
@@ -22,7 +22,7 @@ for i in range(num_folds):
     # 'mixup': 0.1,
     # 'copy_paste': 0.1}
 
-    model_config = {'data': f'hubmap_{i}.yaml', 'epochs': 100, 'imgsz': 640, 'save': True, 'save_period': 100, 'plots': True, 'device': device}
+    model_config = {'data': f'hubmap_{i}.yaml', 'epochs': 100, 'imgsz': 512, 'save': True, 'save_period': 100, 'plots': True, 'device': device}
     # 'mosaic': 0, 'mixup': 0, 'translate': 0, 'scale': 0
     # model_config.update(custom_config)
     model.train(**model_config)
