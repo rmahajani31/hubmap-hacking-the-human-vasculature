@@ -22,6 +22,8 @@
 *.cache
 detectron2/
 Mask2Former/
+mmdetection/
+mmcv/
 .ipynb_checkpoints
 models/
 full_training_data/
