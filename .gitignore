@@ -20,10 +20,14 @@
 *.pt
 *.yaml
 *.cache
+*.lock
 detectron2/
 Mask2Former/
 mmdetection/
 mmcv/
+mmyolo/
+mmsegmentation/
+project_mmdet/work_dirs/
 .ipynb_checkpoints
 models/
 full_training_data/

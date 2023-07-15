@@ -40,6 +40,7 @@ import detectron2.data.transforms as T
 from detectron2 import model_zoo
 import numpy as np
 
+from detectron2.modeling import GeneralizedRCNNWithTTA
 
 # In[2]:
 
@@ -105,9 +106,11 @@ class CustomArguments:
 
 # arguments
 num_folds = 5
-config_file = '/home/ec2-user/hubmap-hacking-the-human-vasculature/detectron2/configs/COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml'
-base_dataset_path = '/home/ec2-user/hubmap-hacking-the-human-vasculature/dataset1_files'
-base_dataset_name = 'hubmap-dataset1'
+# config_file = '/home/ec2-user/hubmap-hacking-the-human-vasculature/detectron2/configs/COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml'
+generate_all_datset_annots = True
+base_dataset_path = '/home/ec2-user/hubmap-hacking-the-human-vasculature/dataset1_files' if not generate_all_datset_annots else '/home/ec2-user/hubmap-hacking-the-human-vasculature/all_dataset_files'
+base_dataset_name = 'hubmap-dataset1' if not generate_all_datset_annots else 'hubmap-full-dataset'
+base_data_dir_name = 'all_dataset1' if not generate_all_datset_annots else 'all_dataset'
 num_machines = 1
 num_gpus = 1
 machine_rank = 0
@@ -122,27 +125,29 @@ opts = []
 
 
 # Setup the config
+model_type = 'COCO-InstanceSegmentation'
+model_name = 'mask_rcnn_R_50_FPN_3x'
 cfg = get_cfg()
-cfg.merge_from_file(model_zoo.get_config_file('COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml'))
+cfg.merge_from_file(model_zoo.get_config_file(f'{model_type}/{model_name}.yaml'))
 cfg.DATASETS.TRAIN = ()
 cfg.DATASETS.TEST = ()
 # cfg.INPUT.MIN_SIZE_TRAIN = (256,350,480,512)  # Minimum input image size during training
-cfg.INPUT.MIN_SIZE_TRAIN = (512,)
-cfg.INPUT.MAX_SIZE_TRAIN = 512     # Maximum input image size during training
-cfg.INPUT.MIN_SIZE_TEST = (512,)      # Minimum input image size during testing
-cfg.INPUT.MAX_SIZE_TEST = 512     # Maximum input image size during testing
+cfg.INPUT.MIN_SIZE_TRAIN = (512,544,576,608,640,672)
+cfg.INPUT.MAX_SIZE_TRAIN = 1024    # Maximum input image size during training
+cfg.INPUT.MIN_SIZE_TEST = 640    # Minimum input image size during testing
+cfg.INPUT.MAX_SIZE_TEST = 1024     # Maximum input image size during testing
 cfg.DATALOADER.NUM_WORKERS = 4
-cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url('COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml')
+cfg.MODEL.WEIGHTS = model_zoo.get_checkpoint_url(f'{model_type}/{model_name}.yaml')
 # cfg.MODEL.WEIGHTS = '/home/ec2-user/hubmap-hacking-the-human-vasculature/project_detectron2/output/inference/best_model_fold_0_with_added_aug_lr_0.00025.pth'
-cfg.SOLVER.IMS_PER_BATCH = 16
+# cfg.SOLVER.IMS_PER_BATCH = 12
 # cfg.SOLVER.BASE_LR = 0.00025
 #cfg.SOLVER.BASE_LR = 0.0025
-cfg.SOLVER.MAX_ITER = 6000
+cfg.SOLVER.MAX_ITER = 500
 cfg.MODEL.ROI_HEADS.NUM_CLASSES = len(CLASSES)
-cfg.MODEL.RPN.PRE_NMS_TOPK_TRAIN = 12000
-cfg.MODEL.RPN.POST_NMS_TOPK_TRAIN = 6000
-cfg.MODEL.RPN.PRE_NMS_TOPK_TEST = 12000
-cfg.MODEL.RPN.POST_NMS_TOPK_TEST = 2000
+# cfg.MODEL.RPN.PRE_NMS_TOPK_TRAIN = 12000
+# cfg.MODEL.RPN.POST_NMS_TOPK_TRAIN = 6000
+# cfg.MODEL.RPN.PRE_NMS_TOPK_TEST = 12000
+# cfg.MODEL.RPN.POST_NMS_TOPK_TEST = 2000
 # cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[4, 8], [12, 16], [24, 32], [48, 64], [96, 128]]
 # cfg.MODEL.ANCHOR_GENERATOR.ASPECT_RATIOS = [[0.25, 0.5, 1, 2, 4]]
 # cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[4], [6], [8], [12], [16]]
@@ -195,7 +200,7 @@ def get_evaluator(cfg, dataset_name, output_folder=None):
             )
         )
     if evaluator_type in ["coco", "coco_panoptic_seg"]:
-        evaluator_list.append(CustomCOCOEvaluator(dataset_name, output_dir=output_folder))
+        evaluator_list.append(COCOEvaluator(dataset_name, output_dir=output_folder))
     if evaluator_type == "coco_panoptic_seg":
         evaluator_list.append(COCOPanopticEvaluator(dataset_name, output_folder))
     if evaluator_type == "cityscapes_instance":
@@ -235,14 +240,15 @@ for i in range(num_folds):
         shutil.rmtree(os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}'))
 
 for i in range(num_folds):
-    register_custom_dataset(f'{base_dataset_name}-train-fold-{i}', f'{base_dataset_path}/all_dataset1_imgs_merged_train_{i}', f'{base_dataset_path}/all_dataset1_annotations_merged_train_{i}')
-    register_custom_dataset(f'{base_dataset_name}-validation-fold-{i}', f'{base_dataset_path}/all_dataset1_imgs_merged_validation_{i}', f'{base_dataset_path}/all_dataset1_annotations_merged_validation_{i}')
+    register_custom_dataset(f'{base_dataset_name}-train-fold-{i}', f'{base_dataset_path}/{base_data_dir_name}_imgs_train_{i}', f'{base_dataset_path}/{base_data_dir_name}_annotations_train_{i}')
+    register_custom_dataset(f'{base_dataset_name}-validation-fold-{i}', f'{base_dataset_path}/{base_data_dir_name}_imgs_validation_{i}', f'{base_dataset_path}/{base_data_dir_name}_annotations_validation_{i}')
 
 for i in range(num_folds):
     train_dataset = DatasetCatalog.get(f'{base_dataset_name}-train-fold-{i}')
     train_data_loader = build_detection_train_loader(cfg, mapper=DatasetMapper(cfg, is_train=True, augmentations=data_transforms), dataset=train_dataset)
     validation_data_loader = build_detection_test_loader(cfg, f'{base_dataset_name}-validation-fold-{i}')
     evaluator = COCOEvaluator(f'{base_dataset_name}-validation-fold-{i}', output_dir=os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}'))
+    # tta_evaluator = COCOEvaluator(f'{base_dataset_name}-validation-fold-{i}', output_dir=os.path.join(cfg.OUTPUT_DIR, "inference", f'{base_dataset_name}-validation-fold-{i}-tta'))
     model = build_model(cfg)
     model.train()
     # if i == 0:
@@ -304,8 +310,11 @@ for i in range(num_folds):
         
             if (iteration+1) % num_iterations_to_show_stats == 0:
                 metrics = inference_on_dataset(model, validation_data_loader, evaluator)
+                # tta_model = GeneralizedRCNNWithTTA(cfg, model)
+                # tta_metrics = inference_on_dataset(tta_model, validation_data_loader, tta_evaluator)
                 print('===========')
                 print(metrics)
+                # print(tta_metrics)
                 print('===========')
                 metrics_str = ''
                 for task, task_metrics in metrics.items():
@@ -314,6 +323,12 @@ for i in range(num_folds):
                         task_str += f'{metric}={value:.4f}, '
                     metrics_str += task_str.rstrip(', ') + '\n'
                 metrics_str = f'Iteration: {iteration}, time_taken: {float(time.time()-start_time)/60} minutes --> {metrics_str}'
+                # metrics_str += 'TTA Metrics\n'
+                # for task, task_metrics in tta_metrics.items():
+                #     task_str = f'{task}: '
+                #     for metric, value in task_metrics.items():
+                #         task_str += f'{metric}={value:.4f}, '
+                #     metrics_str += task_str.rstrip(', ') + '\n'
                 loss_str = ''
                 for loss_key in loss_stats.keys():
                     loss_str += f'{loss_key} - {np.mean(loss_stats[loss_key])}, '
