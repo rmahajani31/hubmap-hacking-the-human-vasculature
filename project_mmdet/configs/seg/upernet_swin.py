@@ -60,3 +60,75 @@ model = dict(
     # model training and testing settings
     train_cfg=dict(),
     test_cfg=dict(mode='whole'))
+
+dataset_type = 'HubMapSegDataset'
+generate_all_datset_annots = True
+base_data_dir_name_1 = 'dataset1_files' if not generate_all_datset_annots else 'all_dataset_files'
+base_data_dir_name_2 = 'all_dataset1' if not generate_all_datset_annots else 'all_dataset'
+data_root = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/{base_data_dir_name_1}/{base_data_dir_name_2}_mmdet_fold_0/'
+suffix_end = 'only_dataset1' if not generate_all_datset_annots else 'dataset1_and_2'
+suffix = f'fold_0_run_yolov8_{suffix_end}'
+
+# Path of train annotation file
+train_ann_file = 'annotations/train_annotations.json'
+train_data_prefix = 'train_images/'  # Prefix of train image path
+# Path of val annotation file
+val_ann_file = 'annotations/validation_annotations.json'
+val_data_prefix = 'validation_images/'  # Prefix of val image path
+
+input_size = (128, 128)
+train_pipeline = [
+    dict(type='LoadImageFromFile'),
+    LoadSegMask(),
+    BoxJitter(),
+    ROIAlign(output_size=input_size),
+    dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
+    FormatSegMask(),
+    PackSegInputs()
+]
+
+test_pipeline = [
+    dict(
+        type='MultiScaleFlipAug',
+        scales=[input_size],
+        transforms=[
+            dict(type='LoadImageFromFile'),
+            LoadSegMask(),
+            ROIAlign(output_size=input_size),
+            dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
+            FormatSegMask(),
+            PackSegInputs()
+        ]
+    )
+]
+
+train_dataloader = dict(
+    batch_size=2,
+    num_workers=2,
+    persistent_workers=True,
+    sampler=dict(type='InfiniteSampler', shuffle=True),
+    dataset=dict(
+        type=dataset_type,
+        data_root=data_root,
+        ann_file=train_ann_file,
+        img_dir=train_data_prefix,
+        pipeline=train_pipeline))
+
+val_dataloader = dict(
+    batch_size=2,
+    num_workers=2,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=True),
+    dataset=dict(
+        type=dataset_type,
+        data_root=data_root,
+        ann_file=val_ann_file,
+        img_dir=val_data_prefix,
+        pipeline=val_pipeline))
+test_dataloader = val_dataloader
+
+val_evaluator = dict(type='mmdet.CocoMetric',
+    proposal_nums=(1000, 1, 10),
+    ann_file=data_root + val_ann_file,
+    metric=['bbox', 'segm'])
+test_evaluator = val_evaluator
