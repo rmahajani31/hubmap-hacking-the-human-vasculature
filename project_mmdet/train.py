@@ -11,7 +11,7 @@ from mmengine.runner import Runner
 from mmyolo.registry import RUNNERS
 from mmyolo.utils import is_metainfo_lower
 
-import hubmap_modules
+from hubmap_modules import *
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Train a detector')

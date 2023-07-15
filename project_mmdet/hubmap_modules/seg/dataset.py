@@ -8,8 +8,8 @@ import os
 class HubMapSegDataset(BaseDataset):
 
     METAINFO = dict(
-        classes=('blood_vessel',),
-        palette=[[128, 64, 128]])
+        classes=('unlabelled', 'blood_vessel',),
+        palette=[[128, 64, 128], [244, 35, 232]])
 
     def __init__(self, data_root='', ann_file='', img_dir='', pipeline=None):
         self.img_dir = img_dir

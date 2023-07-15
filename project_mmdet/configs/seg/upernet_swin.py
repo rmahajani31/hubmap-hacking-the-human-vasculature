@@ -1,10 +1,17 @@
+_base_ = [
+    '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/default_runtime.py', '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/schedules/schedule_40k.py'
+]
+
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 backbone_norm_cfg = dict(type='LN', requires_grad=True)
+train_cfg = dict(val_interval=1)
+input_size = (128, 128)
 data_preprocessor = dict(
     type='SegDataPreProcessor',
     mean=[123.675, 116.28, 103.53],
     std=[58.395, 57.12, 57.375],
+    size=input_size,
     bgr_to_rgb=True,
     pad_val=0,
     seg_pad_val=255)
@@ -76,35 +83,40 @@ train_data_prefix = 'train_images/'  # Prefix of train image path
 val_ann_file = 'annotations/validation_annotations.json'
 val_data_prefix = 'validation_images/'  # Prefix of val image path
 
-input_size = (128, 128)
 train_pipeline = [
     dict(type='LoadImageFromFile'),
-    LoadSegMask(),
-    BoxJitter(),
-    ROIAlign(output_size=input_size),
+    dict(type='LoadSegMask'),
+    dict(type='BoxJitter'),
+    dict(type='ROIAlign', output_size=input_size),
     dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
-    FormatSegMask(),
-    PackSegInputs()
+    dict(type='PackSegInputs')
 ]
 
 test_pipeline = [
-    dict(
-        type='MultiScaleFlipAug',
-        scales=[input_size],
-        transforms=[
-            dict(type='LoadImageFromFile'),
-            LoadSegMask(),
-            ROIAlign(output_size=input_size),
-            dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
-            FormatSegMask(),
-            PackSegInputs()
-        ]
-    )
+    dict(type='LoadImageFromFile'),
+    dict(type='LoadSegMask'),
+    dict(type='ROIAlign', output_size=input_size),
+    dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
+    dict(type='PackSegInputs')
 ]
 
+# test_pipeline = [
+#     dict(
+#         type='MultiScaleFlipAug',
+#         scales=input_size,
+#         transforms=[
+#             dict(type='LoadImageFromFile'),
+#             dict(type='LoadSegMask'),
+#             dict(type='ROIAlign', output_size=input_size),
+#             dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
+#             dict(type='PackSegInputs')
+#         ]
+#     )
+# ]
+
 train_dataloader = dict(
-    batch_size=2,
-    num_workers=2,
+    batch_size=32,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='InfiniteSampler', shuffle=True),
     dataset=dict(
@@ -115,7 +127,7 @@ train_dataloader = dict(
         pipeline=train_pipeline))
 
 val_dataloader = dict(
-    batch_size=2,
+    batch_size=1,
     num_workers=2,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -124,7 +136,7 @@ val_dataloader = dict(
         data_root=data_root,
         ann_file=val_ann_file,
         img_dir=val_data_prefix,
-        pipeline=val_pipeline))
+        pipeline=test_pipeline))
 test_dataloader = val_dataloader
 
 val_evaluator = dict(type='mmdet.CocoMetric',
