@@ -5,8 +5,12 @@ _base_ = [
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 backbone_norm_cfg = dict(type='LN', requires_grad=True)
+classes = ('unlabelled', 'blood_vessel')
 train_cfg = dict(val_interval=1)
 input_size = (128, 128)
+# img_norm_cfg = dict(
+#     mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375], to_rgb=True
+# )
 data_preprocessor = dict(
     type='SegDataPreProcessor',
     mean=[123.675, 116.28, 103.53],
@@ -16,7 +20,7 @@ data_preprocessor = dict(
     pad_val=0,
     seg_pad_val=255)
 model = dict(
-    type='EncoderDecoder',
+    type='CustomEncoderDecoder',
     data_preprocessor=data_preprocessor,
     pretrained=None,
     backbone=dict(
@@ -46,7 +50,7 @@ model = dict(
         pool_scales=(1, 2, 3, 6),
         channels=512,
         dropout_ratio=0.1,
-        num_classes=19,
+        num_classes=len(classes),
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
@@ -59,7 +63,7 @@ model = dict(
         num_convs=1,
         concat_input=False,
         dropout_ratio=0.1,
-        num_classes=19,
+        num_classes=len(classes),
         norm_cfg=norm_cfg,
         align_corners=False,
         loss_decode=dict(
@@ -89,6 +93,7 @@ train_pipeline = [
     dict(type='BoxJitter'),
     dict(type='ROIAlign', output_size=input_size),
     dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
+    # dict(type='Normalize', **img_norm_cfg),
     dict(type='PackSegInputs')
 ]
 
@@ -97,7 +102,9 @@ test_pipeline = [
     dict(type='LoadSegMask'),
     dict(type='ROIAlign', output_size=input_size),
     dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
-    dict(type='PackSegInputs')
+    dict(type='PackSegInputs', meta_keys=('img_path', 'seg_map_path', 'ori_shape',
+                            'img_shape', 'pad_shape', 'scale_factor', 'flip',
+                            'flip_direction', 'reduce_zero_label', 'bbox', 'score'))
 ]
 
 # test_pipeline = [
@@ -109,6 +116,7 @@ test_pipeline = [
 #             dict(type='LoadSegMask'),
 #             dict(type='ROIAlign', output_size=input_size),
 #             dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
+#             dict(type='Normalize', **img_norm_cfg),
 #             dict(type='PackSegInputs')
 #         ]
 #     )
@@ -139,7 +147,7 @@ val_dataloader = dict(
         pipeline=test_pipeline))
 test_dataloader = val_dataloader
 
-val_evaluator = dict(type='mmdet.CocoMetric',
+val_evaluator = dict(type='HubMapSegCocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
     metric=['bbox', 'segm'])

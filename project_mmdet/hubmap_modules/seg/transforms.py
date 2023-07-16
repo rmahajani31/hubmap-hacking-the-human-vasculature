@@ -96,6 +96,16 @@ class ROIAlign(BaseTransform):
         return results
 
 @TRANSFORMS.register_module()
+class BBoxToTensor(BaseTransform):
+    def __init__(self):
+        super().__init__()
+    
+    def transform(self, results):
+        new_bbox = torch.tensor(results['bbox'], device='cuda')
+        results['bbox'] = new_bbox
+        return results
+
+@TRANSFORMS.register_module()
 class FormatSegMask(BaseTransform):
     def __init__(self):
         super().__init__()
