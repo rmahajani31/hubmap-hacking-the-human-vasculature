@@ -25,7 +25,7 @@ classes = ('blood_vessel',)
 
 num_classes = len(classes)  # Number of classes for classification
 # Batch size of a single GPU during training
-train_batch_size_per_gpu = 4
+train_batch_size_per_gpu = 16
 # Worker to pre-fetch data for each single GPU during training
 train_num_workers = 4
 # persistent_workers must be False if num_workers is 0

@@ -136,27 +136,27 @@ train_dataloader = dict(
         img_dir=train_data_prefix,
         pipeline=train_pipeline))
 
-# val_dataloader = dict(
-#     batch_size=64,
-#     num_workers=4,
-#     persistent_workers=True,
-#     sampler=dict(type='DefaultSampler', shuffle=True),
-#     dataset=dict(
-#         type=dataset_type,
-#         data_root=data_root,
-#         ann_file=val_ann_file,
-#         img_dir=val_data_prefix,
-#         pipeline=test_pipeline))
-
 val_dataloader = dict(
     batch_size=64,
     num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
-        type='HubMapSegTestDataset',
-        preds_file='val_preds.pkl',
+        type=dataset_type,
+        data_root=data_root,
+        ann_file=val_ann_file,
+        img_dir=val_data_prefix,
         pipeline=test_pipeline))
+
+# val_dataloader = dict(
+#     batch_size=64,
+#     num_workers=4,
+#     persistent_workers=True,
+#     sampler=dict(type='DefaultSampler', shuffle=True),
+#     dataset=dict(
+#         type='HubMapSegTestDataset',
+#         preds_file='val_preds.pkl',
+#         pipeline=test_pipeline))
 test_dataloader = val_dataloader
 
 val_evaluator = dict(type='HubMapSegCocoMetric',
