@@ -83,3 +83,4 @@ train_pipeline_stage2 = [
 
 train_dataloader = dict(dataset=dict(pipeline=train_pipeline))
 _base_.custom_hooks[1].switch_pipeline = train_pipeline_stage2
+load_from = 'https://download.openmmlab.com/mmyolo/v0/yolov8/yolov8_m_mask-refine_syncbn_fast_8xb16-500e_coco/yolov8_m_mask-refine_syncbn_fast_8xb16-500e_coco_20230216_223400-f40abfcd.pth'

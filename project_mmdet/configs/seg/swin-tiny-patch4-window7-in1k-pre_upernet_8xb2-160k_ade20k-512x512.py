@@ -1,80 +1,59 @@
 _base_ = [
-    '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/default_runtime.py', '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/schedules/schedule_40k.py'
+    '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/models/upernet_swin.py',
+    '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/default_runtime.py', '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/schedules/schedule_160k.py'
 ]
-
-pretrained = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/swin/swin_tiny_patch4_window7_224_20220317-1cdeb081.pth'
-
-# model settings
-norm_cfg = dict(type='SyncBN', requires_grad=True)
-backbone_norm_cfg = dict(type='LN', requires_grad=True)
+crop_size = (224, 224)
+data_preprocessor = dict(size=crop_size)
+checkpoint_file = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/swin/swin_tiny_patch4_window7_224_20220317-1cdeb081.pth'  # noqa
 classes = ('unlabelled', 'blood_vessel')
-train_cfg = dict(val_interval=500)
-input_size = (224, 224)
-test_cfg = dict(size=input_size)
-data_preprocessor = dict(
-    type='SegDataPreProcessor',
-    mean=[123.675, 116.28, 103.53],
-    std=[58.395, 57.12, 57.375],
-    size=input_size,
-    bgr_to_rgb=True,
-    pad_val=0,
-    seg_pad_val=255)
+num_classes = len(classes)
+train_cfg = dict(max_iters=40000, val_interval=1)
+
 model = dict(
     type='CustomEncoderDecoder',
     data_preprocessor=data_preprocessor,
     backbone=dict(
-        type='SwinTransformer',
-        pretrain_img_size=224,
+        init_cfg=dict(type='Pretrained', checkpoint=checkpoint_file),
         embed_dims=96,
-        patch_size=4,
-        window_size=7,
-        mlp_ratio=4,
         depths=[2, 2, 6, 2],
         num_heads=[3, 6, 12, 24],
-        strides=(4, 2, 2, 2),
-        out_indices=(0, 1, 2, 3),
-        qkv_bias=True,
-        qk_scale=None,
-        patch_norm=True,
-        drop_rate=0.,
-        attn_drop_rate=0.,
-        drop_path_rate=0.3,
+        window_size=7,
         use_abs_pos_embed=False,
-        act_cfg=dict(type='GELU'),
-        norm_cfg=backbone_norm_cfg,
-        init_cfg=dict(type='Pretrained', checkpoint=pretrained)
-        ),
-    decode_head=dict(
-        type='UPerHead',
-        in_channels=[96, 192, 384, 768],
-        in_index=[0, 1, 2, 3],
-        pool_scales=(1, 2, 3, 6),
-        channels=512,
-        dropout_ratio=0.1,
-        num_classes=len(classes),
-        out_channels=1,
-        norm_cfg=norm_cfg,
-        align_corners=False,
-        loss_decode=dict(
+        drop_path_rate=0.3,
+        patch_norm=True),
+    decode_head=dict(in_channels=[96, 192, 384, 768], num_classes=num_classes, out_channels=1, loss_decode=dict(
             type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0)),
-    auxiliary_head=dict(
-        type='FCNHead',
-        in_channels=384,
-        in_index=2,
-        channels=256,
-        num_convs=1,
-        concat_input=False,
-        dropout_ratio=0.1,
-        num_classes=len(classes),
-        out_channels=1,
-        norm_cfg=norm_cfg,
-        align_corners=False,
-        loss_decode=dict(
-            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=0.4)),
-    # model training and testing settings
-    train_cfg=dict(),
-    test_cfg=dict(mode='whole'))
+    auxiliary_head=dict(in_channels=384, num_classes=num_classes, out_channels=1, loss_decode=dict(
+            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=0.4)))
 
+# AdamW optimizer, no weight decay for position embedding & layer norm
+# in backbone
+optim_wrapper = dict(
+    _delete_=True,
+    type='OptimWrapper',
+    optimizer=dict(
+        type='AdamW', lr=0.00006, betas=(0.9, 0.999), weight_decay=0.01),
+    paramwise_cfg=dict(
+        custom_keys={
+            'absolute_pos_embed': dict(decay_mult=0.),
+            'relative_position_bias_table': dict(decay_mult=0.),
+            'norm': dict(decay_mult=0.)
+        }))
+
+param_scheduler = [
+    dict(
+        type='LinearLR', start_factor=1e-6, by_epoch=False, begin=0, end=1500),
+    dict(
+        type='PolyLR',
+        eta_min=0.0,
+        power=1.0,
+        begin=1500,
+        end=160000,
+        by_epoch=False,
+    )
+]
+
+# By default, models are trained on 8 GPUs with 2 images per GPU
 dataset_type = 'HubMapSegTrainDataset'
 generate_all_datset_annots = True
 base_data_dir_name_1 = 'dataset1_files' if not generate_all_datset_annots else 'all_dataset_files'
@@ -98,16 +77,14 @@ train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadSegMask'),
     dict(type='BoxJitter'),
-    dict(type='ROIAlign', output_size=input_size),
+    dict(type='ROIAlign', output_size=crop_size),
     dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
-    # dict(type='Normalize', **img_norm_cfg),
     dict(type='PackSegInputs')
 ]
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),
-    # dict(type='LoadSegMask'),
-    dict(type='ROIAlign', output_size=input_size),
+    dict(type='ROIAlign', output_size=crop_size),
     dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
     dict(type='PackSegInputs', meta_keys=('img_path', 'img_id', 'seg_map_path', 'ori_shape',
                             'img_shape', 'pad_shape', 'scale_factor', 'flip',
@@ -155,7 +132,7 @@ train_dataloader = dict(
 
 val_dataloader = dict(
     batch_size=64,
-    num_workers=4,
+    num_workers=2,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
@@ -167,7 +144,8 @@ test_dataloader = val_dataloader
 val_evaluator = dict(type='HubMapSegCocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric=['bbox', 'segm'])
+    metric=['bbox', 'segm'],
+    dilate_mask=False)
 test_evaluator = val_evaluator
 
 custom_hooks = [dict(type='ModelCheckpointingHook', interval=1, metrics_file_name=metrics_file_name, chkp_dir=chkp_dir, chkp_name=chkp_name, tgt_metric='coco/segm_mAP', should_record_epoch=False)]

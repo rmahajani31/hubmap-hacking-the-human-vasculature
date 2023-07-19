@@ -8,10 +8,12 @@ from mmengine.hooks import Hook
 
 @HOOKS.register_module()
 class ModelCheckpointingHook(Hook):
-    def __init__(self, interval, metrics_file_name, chkp_dir, chkp_name):
+    def __init__(self, interval, metrics_file_name, chkp_dir, chkp_name, tgt_metric, should_record_epoch):
         self.interval = interval
         self.chkp_dir = chkp_dir
         self.chkp_name = chkp_name
+        self.tgt_metric = tgt_metric
+        self.should_record_epoch = should_record_epoch
         self.metrics_file_path = f'{self.chkp_dir}/{metrics_file_name}'
         self.max_ap = 0
     
@@ -25,12 +27,12 @@ class ModelCheckpointingHook(Hook):
     def after_val_epoch(self, runner, metrics):
         if self.every_n_epochs(runner, self.interval):
             fp = open(self.metrics_file_path, 'a')
-            fp.write(f'Epoch {runner.epoch}.....\n')
+            fp.write(f'Epoch {runner.epoch if self.should_record_epoch else runner.iter}.....\n')
             json.dump(metrics, fp)
             fp.write(f'\n===============\n')
             fp.close()
-            if 'coco/bbox_mAP' in metrics:
-                cur_ap = metrics['coco/bbox_mAP']
+            if self.tgt_metric in metrics:
+                cur_ap = metrics[self.tgt_metric]
                 meta = dict(epoch=runner.epoch, iter=runner.iter)
                 self.chkp_name_parts = self.chkp_name.split('.pth')
                 if cur_ap > self.max_ap:

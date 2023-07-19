@@ -45,9 +45,10 @@ class CustomEncoderDecoder(EncoderDecoder):
         seg_logits = self.inference(inputs, batch_img_metas)
 
         new_data_samples = self.postprocess_result(seg_logits, data_samples)
-        print('==============PREDICT===============')
-        print(new_data_samples[0].metainfo, new_data_samples[0].seg_logits.data.shape, new_data_samples[0].gt_sem_seg.data.shape, new_data_samples[0].pred_sem_seg.data.shape, new_data_samples[0].final_seg_pred.data.shape)
-        print('==============PREDICT===============')
+        # print('==============PREDICT===============')
+        # # print(new_data_samples[0].metainfo, new_data_samples[0].seg_logits.data.shape, new_data_samples[0].pred_sem_seg.data.shape, new_data_samples[0].final_seg_pred.data.shape)
+        # print(len(new_data_samples))
+        # print('==============PREDICT===============')
         return new_data_samples
 
     def postprocess_result(self,
@@ -112,6 +113,9 @@ class CustomEncoderDecoder(EncoderDecoder):
                     i_seg_logits = seg_logits[i]
 
                 if C > 1:
+                    # print('========IN POSTPROC MULTIPLE CHANNELS===============')
+                    # print(i_seg_logits.shape, self.decode_head.threshold)
+                    # print('========IN POSTPROC MULTIPLE CHANNELS===============')
                     i_seg_pred = i_seg_logits.argmax(dim=0, keepdim=True)
                     i_seg_prob = torch.softmax(i_seg_logits, dim=0)[1]
                     i_seg_prob = i_seg_prob.unsqueeze(dim=0).unsqueeze(dim=0)
@@ -121,10 +125,19 @@ class CustomEncoderDecoder(EncoderDecoder):
                     i_seg_prob, _ = _do_paste_mask(i_seg_prob, bbox, ori_shape[0], ori_shape[1], False)
                     final_seg_pred = i_seg_prob >= 0.5
                 else:
+                    # print('========IN POSTPROC SINGLE CHANNELS===============')
+                    # print(i_seg_logits.shape, self.decode_head.threshold)
+                    # print('========IN POSTPROC SINGLE CHANNELS===============')
                     i_seg_logits = i_seg_logits.sigmoid()
+                    i_seg_prob = i_seg_logits.unsqueeze(dim=0)
+                    bbox = torch.tensor(data_samples[i].metainfo['bbox'], device='cuda')
+                    bbox = bbox.unsqueeze(dim=0)
+                    ori_shape = data_samples[i].metainfo['ori_shape']
+                    i_seg_prob, _ = _do_paste_mask(i_seg_prob, bbox, ori_shape[0], ori_shape[1], False)
+                    final_seg_pred = i_seg_prob > self.decode_head.threshold
                     i_seg_pred = (i_seg_logits >
                                 self.decode_head.threshold).to(i_seg_logits)
-                print(f'i_seg_logits shape: {i_seg_logits.shape}')
+                # print(f'i_seg_logits shape: {i_seg_logits.shape}')
                 data_samples[i].set_data({
                     'seg_logits':
                     PixelData(**{'data': i_seg_logits}),
