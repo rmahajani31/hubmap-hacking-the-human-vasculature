@@ -49,7 +49,7 @@ model_test_cfg = dict(
 
 # ========================Possible modified parameters========================
 # -----data related-----
-img_scale = (1024, 1024)  # width, height
+img_scale = (512, 512)  # width, height
 # Dataset type, this will be used to define the dataset
 dataset_type = 'YOLOv5CocoDataset'
 # Batch size of a single GPU during validation
@@ -336,7 +336,7 @@ val_evaluator = dict(
     type='HubMapDetCocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric='bbox')
+    metric='bbox', score_thresh=0.001, save_preds=True)
 test_evaluator = val_evaluator
 
 train_cfg = dict(

@@ -2,8 +2,6 @@ _base_ = [
     '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/default_runtime.py', '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/schedules/schedule_40k.py'
 ]
 
-pretrained = 'https://download.openmmlab.com/mmsegmentation/v0.5/pretrain/swin/swin_tiny_patch4_window7_224_20220317-1cdeb081.pth'
-
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)
 backbone_norm_cfg = dict(type='LN', requires_grad=True)
@@ -12,7 +10,7 @@ train_cfg = dict(val_interval=500)
 input_size = (224, 224)
 test_cfg = dict(size=input_size)
 data_preprocessor = dict(
-    type='SegDataPreProcessor',
+    type='CustomSegDataPreProcessor',
     mean=[123.675, 116.28, 103.53],
     std=[58.395, 57.12, 57.375],
     size=input_size,
@@ -41,8 +39,7 @@ model = dict(
         drop_path_rate=0.3,
         use_abs_pos_embed=False,
         act_cfg=dict(type='GELU'),
-        norm_cfg=backbone_norm_cfg,
-        init_cfg=dict(type='Pretrained', checkpoint=pretrained)
+        norm_cfg=backbone_norm_cfg
         ),
     decode_head=dict(
         type='UPerHead',
@@ -100,13 +97,11 @@ train_pipeline = [
     dict(type='BoxJitter'),
     dict(type='ROIAlign', output_size=input_size),
     dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
-    # dict(type='Normalize', **img_norm_cfg),
     dict(type='PackSegInputs')
 ]
 
 test_pipeline = [
     dict(type='LoadImageFromFile'),
-    # dict(type='LoadSegMask'),
     dict(type='ROIAlign', output_size=input_size),
     dict(type='RandomFlip', prob=0.5, direction=['horizontal', 'vertical']),
     dict(type='PackSegInputs', meta_keys=('img_path', 'img_id', 'seg_map_path', 'ori_shape',
@@ -171,3 +166,4 @@ val_evaluator = dict(type='HubMapSegCocoMetric',
 test_evaluator = val_evaluator
 
 custom_hooks = [dict(type='ModelCheckpointingHook', interval=1, metrics_file_name=metrics_file_name, chkp_dir=chkp_dir, chkp_name=chkp_name, tgt_metric='coco/segm_mAP', should_record_epoch=False)]
+load_from = 'https://download.openmmlab.com/mmsegmentation/v0.5/swin/upernet_swin_base_patch4_window7_512x512_160k_ade20k_pretrain_224x224_1K/upernet_swin_base_patch4_window7_512x512_160k_ade20k_pretrain_224x224_1K_20210526_192340-593b0e13.pth'
