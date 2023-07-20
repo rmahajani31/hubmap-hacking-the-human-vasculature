@@ -6,7 +6,7 @@ base_data_dir_name_1 = 'dataset1_files' if not generate_all_datset_annots else '
 base_data_dir_name_2 = 'all_dataset1' if not generate_all_datset_annots else 'all_dataset'
 data_root = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/{base_data_dir_name_1}/{base_data_dir_name_2}_mmdet_fold_0/'
 suffix_end = 'only_dataset1' if not generate_all_datset_annots else 'dataset1_and_2'
-suffix = f'fold_0_run_cascade_rcnn_{suffix_end}'
+suffix = f'fold_0_run_cascade_mask_rcnn_{suffix_end}'
 
 chkp_dir = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/project_mmdet/models_{suffix}'
 metrics_file_name = f'metrics_{suffix}.txt'
@@ -33,6 +33,7 @@ model = dict(
         mean=[123.675, 116.28, 103.53],
         std=[58.395, 57.12, 57.375],
         bgr_to_rgb=True,
+        pad_mask=True,
         pad_size_divisor=32),
     backbone=dict(
         type='ResNeXt',
@@ -43,7 +44,8 @@ model = dict(
         out_indices=(0, 1, 2, 3),
         frozen_stages=1,
         norm_cfg=dict(type='BN', requires_grad=True),
-        style='pytorch', init_cfg=dict(
+        style='pytorch',
+        init_cfg=dict(
             type='Pretrained', checkpoint='open-mmlab://resnext101_64x4d')),
     neck=dict(
         type='FPN',
@@ -126,7 +128,20 @@ model = dict(
                     use_sigmoid=False,
                     loss_weight=1.0),
                 loss_bbox=dict(type='SmoothL1Loss', beta=1.0, loss_weight=1.0))
-        ]),
+        ],
+        mask_roi_extractor=dict(
+            type='SingleRoIExtractor',
+            roi_layer=dict(type='RoIAlign', output_size=14, sampling_ratio=0),
+            out_channels=256,
+            featmap_strides=[4, 8, 16, 32]),
+        mask_head=dict(
+            type='FCNMaskHead',
+            num_convs=4,
+            in_channels=256,
+            conv_out_channels=256,
+            num_classes=num_classes,
+            loss_mask=dict(
+                type='CrossEntropyLoss', use_mask=True, loss_weight=1.0))),
     # model training and testing settings
     train_cfg=dict(
         rpn=dict(
@@ -166,6 +181,7 @@ model = dict(
                     pos_fraction=0.25,
                     neg_pos_ub=-1,
                     add_gt_as_proposals=True),
+                mask_size=28,
                 pos_weight=-1,
                 debug=False),
             dict(
@@ -182,6 +198,7 @@ model = dict(
                     pos_fraction=0.25,
                     neg_pos_ub=-1,
                     add_gt_as_proposals=True),
+                mask_size=28,
                 pos_weight=-1,
                 debug=False),
             dict(
@@ -198,6 +215,7 @@ model = dict(
                     pos_fraction=0.25,
                     neg_pos_ub=-1,
                     add_gt_as_proposals=True),
+                mask_size=28,
                 pos_weight=-1,
                 debug=False)
         ]),
@@ -210,7 +228,8 @@ model = dict(
         rcnn=dict(
             score_thr=0.05,
             nms=dict(type='nms', iou_threshold=0.5),
-            max_per_img=100)))
+            max_per_img=100,
+            mask_thr_binary=0.5)))
 
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=backend_args),
@@ -232,7 +251,7 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=4,
+    batch_size=2,
     num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
@@ -272,5 +291,4 @@ val_evaluator = dict(
     metric='bbox')
 test_evaluator = val_evaluator
 
-load_from = 'https://download.openmmlab.com/mmdetection/v2.0/cascade_rcnn/cascade_rcnn_x101_64x4d_fpn_20e_coco/cascade_rcnn_x101_64x4d_fpn_20e_coco_20200509_224357-051557b1.pth'
-train_cfg = dict(type='EpochBasedTrainLoop', max_epochs=100, val_interval=1)
+load_from = 'https://download.openmmlab.com/mmdetection/v2.0/cascade_rcnn/cascade_mask_rcnn_x101_64x4d_fpn_20e_coco/cascade_mask_rcnn_x101_64x4d_fpn_20e_coco_20200512_161033-bdb5126a.pth'
