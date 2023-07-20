@@ -1,7 +1,34 @@
 _base_ = [
-    '../_base_/default_runtime.py', '../_base_/schedules/schedule_1x.py',
-    '../_base_/datasets/coco_detection.py', './rtmdet_tta.py'
+    '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmdetection/configs/_base_/default_runtime.py', '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmdetection/configs/_base_/schedules/schedule_1x.py',
+    '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmdetection/configs/_base_/datasets/coco_detection.py', '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmdetection/configs/rtmdet/rtmdet_tta.py'
 ]
+
+dataset_type = 'CocoDataset'
+generate_all_datset_annots = True
+base_data_dir_name_1 = 'dataset1_files' if not generate_all_datset_annots else 'all_dataset_files'
+base_data_dir_name_2 = 'all_dataset1' if not generate_all_datset_annots else 'all_dataset'
+data_root = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/{base_data_dir_name_1}/{base_data_dir_name_2}_mmdet_fold_0/'
+suffix_end = 'only_dataset1' if not generate_all_datset_annots else 'dataset1_and_2'
+suffix = f'fold_0_run_rtmdet_{suffix_end}'
+
+chkp_dir = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/project_mmdet/models_{suffix}'
+metrics_file_name = f'metrics_{suffix}.txt'
+chkp_name = f'model_{suffix}.pth'
+
+# Path of train annotation file
+train_ann_file = 'annotations/train_annotations.json'
+train_data_prefix = 'train_images/'  # Prefix of train image path
+# Path of val annotation file
+val_ann_file = 'annotations/validation_annotations.json'
+val_data_prefix = 'validation_images/'  # Prefix of val image path
+
+classes = ('blood_vessel',)
+
+num_classes = len(classes)  # Number of classes for classification
+img_scale = (512, 512)
+
+backend_args = None
+
 model = dict(
     type='RTMDet',
     data_preprocessor=dict(
@@ -29,7 +56,7 @@ model = dict(
         act_cfg=dict(type='SiLU', inplace=True)),
     bbox_head=dict(
         type='RTMDetSepBNHead',
-        num_classes=80,
+        num_classes=num_classes,
         in_channels=256,
         stacked_convs=2,
         feat_channels=256,
@@ -64,19 +91,19 @@ model = dict(
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args={{_base_.backend_args}}),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(type='CachedMosaic', img_scale=(640, 640), pad_val=114.0),
+    dict(type='CachedMosaic', img_scale=img_scale, pad_val=114.0),
     dict(
         type='RandomResize',
-        scale=(1280, 1280),
+        scale=(1024, 1024),
         ratio_range=(0.1, 2.0),
         keep_ratio=True),
-    dict(type='RandomCrop', crop_size=(640, 640)),
+    dict(type='RandomCrop', crop_size=img_scale),
     dict(type='YOLOXHSVRandomAug'),
     dict(type='RandomFlip', prob=0.5),
-    dict(type='Pad', size=(640, 640), pad_val=dict(img=(114, 114, 114))),
+    dict(type='Pad', size=img_scale, pad_val=dict(img=(114, 114, 114))),
     dict(
         type='CachedMixUp',
-        img_scale=(640, 640),
+        img_scale=img_scale,
         ratio_range=(1.0, 1.0),
         max_cached_images=20,
         pad_val=(114, 114, 114)),
@@ -88,20 +115,20 @@ train_pipeline_stage2 = [
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='RandomResize',
-        scale=(640, 640),
+        scale=img_scale,
         ratio_range=(0.1, 2.0),
         keep_ratio=True),
-    dict(type='RandomCrop', crop_size=(640, 640)),
+    dict(type='RandomCrop', crop_size=img_scale),
     dict(type='YOLOXHSVRandomAug'),
     dict(type='RandomFlip', prob=0.5),
-    dict(type='Pad', size=(640, 640), pad_val=dict(img=(114, 114, 114))),
+    dict(type='Pad', size=img_scale, pad_val=dict(img=(114, 114, 114))),
     dict(type='PackDetInputs')
 ]
 
 test_pipeline = [
     dict(type='LoadImageFromFile', backend_args={{_base_.backend_args}}),
-    dict(type='Resize', scale=(640, 640), keep_ratio=True),
-    dict(type='Pad', size=(640, 640), pad_val=dict(img=(114, 114, 114))),
+    dict(type='Resize', scale=img_scale, keep_ratio=True),
+    dict(type='Pad', size=img_scale, pad_val=dict(img=(114, 114, 114))),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='PackDetInputs',
@@ -110,14 +137,45 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=32,
-    num_workers=10,
-    batch_sampler=None,
-    pin_memory=True,
-    dataset=dict(pipeline=train_pipeline))
+    batch_size=2,
+    num_workers=2,
+    persistent_workers=True,
+    sampler=dict(type='DefaultSampler', shuffle=True),
+    batch_sampler=dict(type='AspectRatioBatchSampler'),
+    dataset=dict(
+        type=dataset_type,
+        metainfo=dict(classes=classes),
+        data_root=data_root,
+        ann_file=train_ann_file,
+        data_prefix=dict(img=train_data_prefix),
+        filter_cfg=dict(filter_empty_gt=True, min_size=32),
+        pipeline=train_pipeline,
+        backend_args=backend_args))
+
 val_dataloader = dict(
-    batch_size=5, num_workers=10, dataset=dict(pipeline=test_pipeline))
+    batch_size=1,
+    num_workers=2,
+    persistent_workers=True,
+    drop_last=False,
+    sampler=dict(type='DefaultSampler', shuffle=False),
+    dataset=dict(
+        type=dataset_type,
+        metainfo=dict(classes=classes),
+        data_root=data_root,
+        ann_file=val_ann_file,
+        data_prefix=dict(img=val_data_prefix),
+        test_mode=True,
+        pipeline=test_pipeline,
+        backend_args=backend_args))
+
 test_dataloader = val_dataloader
+
+val_evaluator = dict(
+    type='HubMapDetCocoMetric',
+    proposal_nums=(1000, 1, 10),
+    ann_file=data_root + val_ann_file,
+    metric='bbox', score_thresh=0.001, save_preds=False)
+test_evaluator = val_evaluator
 
 max_epochs = 300
 stage2_num_epochs = 20
@@ -128,9 +186,6 @@ train_cfg = dict(
     max_epochs=max_epochs,
     val_interval=interval,
     dynamic_intervals=[(max_epochs - stage2_num_epochs, 1)])
-
-val_evaluator = dict(proposal_nums=(100, 1, 10))
-test_evaluator = val_evaluator
 
 # optimizer
 optim_wrapper = dict(
@@ -175,5 +230,8 @@ custom_hooks = [
     dict(
         type='PipelineSwitchHook',
         switch_epoch=max_epochs - stage2_num_epochs,
-        switch_pipeline=train_pipeline_stage2)
+        switch_pipeline=train_pipeline_stage2),
+    dict(type='ModelCheckpointingHook', interval=1, metrics_file_name=metrics_file_name, chkp_dir=chkp_dir, chkp_name=chkp_name, tgt_metric='coco/bbox_mAP', should_record_epoch=True)
 ]
+
+load_from = 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet_l_8xb32-300e_coco/rtmdet_l_8xb32-300e_coco_20220719_112030-5a0be7c4.pth'

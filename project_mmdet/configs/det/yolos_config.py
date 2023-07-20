@@ -336,7 +336,7 @@ val_evaluator = dict(
     type='HubMapDetCocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric='bbox', score_thresh=0.001, save_preds=True)
+    metric='bbox', score_thresh=0.001, save_preds=False)
 test_evaluator = val_evaluator
 
 train_cfg = dict(

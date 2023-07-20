@@ -175,12 +175,10 @@ val_dataloader = dict(
 test_dataloader = val_dataloader
 
 val_evaluator = dict(
-    type='CocoMetric',
-    ann_file=data_root + val_ann_file,
-    metric='bbox',
+    type='HubMapDetCocoMetric',
     proposal_nums=(1000, 1, 10),
-    format_only=False,
-    backend_args=backend_args)
+    ann_file=data_root + val_ann_file,
+    metric='bbox', score_thresh=0.001, save_preds=False)
 test_evaluator = val_evaluator
 
 optim_wrapper = dict(
