@@ -22,7 +22,7 @@ val_data_prefix = 'validation_images/'  # Prefix of val image path
 classes = ('blood_vessel',)
 
 num_classes = len(classes)  # Number of classes for classification
-img_scale = (512, 512)
+img_scale = (1024, 1024)
 
 backend_args = None
 
@@ -232,8 +232,8 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=2,
-    num_workers=2,
+    batch_size=4,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     batch_sampler=dict(type='AspectRatioBatchSampler'),
@@ -266,10 +266,11 @@ val_dataloader = dict(
 test_dataloader = val_dataloader
 
 val_evaluator = dict(
-    type='HubMapDetCocoMetric',
+    type='mmdet.CocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric='bbox', score_thresh=0.001, save_preds=False)
+    metric='bbox')
 test_evaluator = val_evaluator
 
 load_from = 'https://download.openmmlab.com/mmdetection/v2.0/cascade_rcnn/cascade_rcnn_x101_64x4d_fpn_20e_coco/cascade_rcnn_x101_64x4d_fpn_20e_coco_20200509_224357-051557b1.pth'
+train_cfg = dict(type='EpochBasedTrainLoop', max_epochs=100, val_interval=1)
