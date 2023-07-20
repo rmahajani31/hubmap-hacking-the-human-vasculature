@@ -1,5 +1,5 @@
 from mmdet.evaluation.metrics import CocoMetric
-from mmyolo.registry import METRICS
+from mmengine.registry import METRICS
 from mmdet.structures.mask import encode_mask_results
 
 import torch
