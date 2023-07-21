@@ -120,12 +120,13 @@ backend_args = None
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=backend_args),
     dict(type='LoadAnnotations', with_bbox=True),
-    dict(
-        type='RandomResize',
-        scale=(image_size, image_size),
-        ratio_range=(0.1, 2.0),
-        keep_ratio=True),
-    dict(type='RandomCrop', crop_size=(image_size, image_size)),
+    dict(type='Resize', scale=(image_size, image_size), keep_ratio=True),
+    # dict(
+    #     type='RandomResize',
+    #     scale=(image_size, image_size),
+    #     ratio_range=(0.1, 2.0),
+    #     keep_ratio=True),
+    # dict(type='RandomCrop', crop_size=(image_size, image_size)),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PackDetInputs')
 ]

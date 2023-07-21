@@ -132,7 +132,6 @@ train_pipeline_stage2 = [
 test_pipeline = [
     dict(type='LoadImageFromFile', backend_args=backend_args),
     dict(type='Resize', scale=img_scale, keep_ratio=True),
-    dict(type='Pad', size=img_scale, pad_val=dict(img=(114, 114, 114))),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='PackDetInputs',
