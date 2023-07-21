@@ -25,7 +25,7 @@ val_data_prefix = 'validation_images/'  # Prefix of val image path
 classes = ('blood_vessel',)
 
 num_classes = len(classes)  # Number of classes for classification
-img_scale = (1024, 1024)
+img_scale = (512, 512)
 
 backend_args = None
 
