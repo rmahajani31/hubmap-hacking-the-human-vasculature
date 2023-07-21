@@ -25,7 +25,7 @@ val_data_prefix = 'validation_images/'  # Prefix of val image path
 classes = ('blood_vessel',)
 
 num_classes = len(classes)  # Number of classes for classification
-img_scale = (1024, 1024)
+img_scale = (512, 512)
 
 backend_args = None
 checkpoint = 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/cspnext_rsb_pretrain/cspnext-s_imagenet_600e.pth'  # noqa
@@ -118,8 +118,8 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=2,
-    num_workers=2,
+    batch_size=8,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     batch_sampler=dict(type='AspectRatioBatchSampler'),
