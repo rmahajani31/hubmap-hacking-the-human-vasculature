@@ -26,6 +26,8 @@ img_scale = (1024, 1024)
 
 backend_args = None
 
+custom_hooks = [dict(type='ModelCheckpointingHook', interval=1, metrics_file_name=metrics_file_name, chkp_dir=chkp_dir, chkp_name=chkp_name, tgt_metric='coco/bbox_mAP', should_record_epoch=True)]
+
 model = dict(
     type='CascadeRCNN',
     data_preprocessor=dict(
@@ -290,7 +292,5 @@ val_evaluator = dict(
     ann_file=data_root + val_ann_file,
     metric='bbox')
 test_evaluator = val_evaluator
-
-
 
 load_from = 'https://download.openmmlab.com/mmdetection/v2.0/cascade_rcnn/cascade_mask_rcnn_x101_64x4d_fpn_20e_coco/cascade_mask_rcnn_x101_64x4d_fpn_20e_coco_20200512_161033-bdb5126a.pth'

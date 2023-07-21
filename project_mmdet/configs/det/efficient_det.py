@@ -3,11 +3,14 @@ _base_ = [
     '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmdetection/configs/_base_/default_runtime.py'
 ]
 
+classes = ('blood_vessel',)
+
+num_classes = len(classes)  # Number of classes for classification
 
 custom_imports = dict(
     imports=['hubmap_modules.det.efficientdet'], allow_failed_imports=False)
 
-image_size = 512
+image_size = 1024
 batch_augments = [
     dict(type='BatchFixedSizePad', size=(image_size, image_size))
 ]
@@ -43,7 +46,7 @@ model = dict(
         norm_cfg=norm_cfg),
     bbox_head=dict(
         type='EfficientDetSepBNHead',
-        num_classes=80,
+        num_classes=num_classes,
         num_ins=5,
         in_channels=160,
         feat_channels=160,
@@ -112,10 +115,6 @@ train_data_prefix = 'train_images/'  # Prefix of train image path
 # Path of val annotation file
 val_ann_file = 'annotations/validation_annotations.json'
 val_data_prefix = 'validation_images/'  # Prefix of val image path
-
-classes = ('blood_vessel',)
-
-num_classes = len(classes)  # Number of classes for classification
 backend_args = None
 
 train_pipeline = [
@@ -142,7 +141,7 @@ test_pipeline = [
 
 train_dataloader = dict(
     batch_size=2,
-    num_workers=2,
+    num_workers=4,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     batch_sampler=dict(type='AspectRatioBatchSampler'),
@@ -175,10 +174,10 @@ val_dataloader = dict(
 test_dataloader = val_dataloader
 
 val_evaluator = dict(
-    type='HubMapDetCocoMetric',
+    type='mmdet.CocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric='bbox', score_thresh=0.001, save_preds=False)
+    metric='bbox')
 test_evaluator = val_evaluator
 
 optim_wrapper = dict(

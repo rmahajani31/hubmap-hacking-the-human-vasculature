@@ -25,7 +25,7 @@ val_data_prefix = 'validation_images/'  # Prefix of val image path
 classes = ('blood_vessel',)
 
 num_classes = len(classes)  # Number of classes for classification
-img_scale = (512, 512)
+img_scale = (1024, 1024)
 
 backend_args = None
 
@@ -89,12 +89,12 @@ model = dict(
 )
 
 train_pipeline = [
-    dict(type='LoadImageFromFile', backend_args={{_base_.backend_args}}),
+    dict(type='LoadImageFromFile', backend_args=backend_args),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(type='CachedMosaic', img_scale=img_scale, pad_val=114.0),
     dict(
         type='RandomResize',
-        scale=(1024, 1024),
+        scale=(img_scale[0]*2, img_scale[1]*2),
         ratio_range=(0.1, 2.0),
         keep_ratio=True),
     dict(type='RandomCrop', crop_size=img_scale),
@@ -111,7 +111,7 @@ train_pipeline = [
 ]
 
 train_pipeline_stage2 = [
-    dict(type='LoadImageFromFile', backend_args={{_base_.backend_args}}),
+    dict(type='LoadImageFromFile', backend_args=backend_args),
     dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='RandomResize',
@@ -126,7 +126,7 @@ train_pipeline_stage2 = [
 ]
 
 test_pipeline = [
-    dict(type='LoadImageFromFile', backend_args={{_base_.backend_args}}),
+    dict(type='LoadImageFromFile', backend_args=backend_args),
     dict(type='Resize', scale=img_scale, keep_ratio=True),
     dict(type='Pad', size=img_scale, pad_val=dict(img=(114, 114, 114))),
     dict(type='LoadAnnotations', with_bbox=True),
@@ -171,16 +171,16 @@ val_dataloader = dict(
 test_dataloader = val_dataloader
 
 val_evaluator = dict(
-    type='HubMapDetCocoMetric',
+    type='mmdet.CocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric='bbox', score_thresh=0.001, save_preds=False)
+    metric='bbox')
 test_evaluator = val_evaluator
 
 max_epochs = 300
 stage2_num_epochs = 20
 base_lr = 0.004
-interval = 10
+interval = 1
 
 train_cfg = dict(
     max_epochs=max_epochs,
