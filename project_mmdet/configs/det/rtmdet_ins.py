@@ -25,7 +25,7 @@ val_data_prefix = 'validation_images/'  # Prefix of val image path
 classes = ('blood_vessel',)
 
 num_classes = len(classes)  # Number of classes for classification
-img_scale = (1024, 1024)
+img_scale = (512, 512)
 
 backend_args = None
 
@@ -55,11 +55,15 @@ model = dict(
         norm_cfg=dict(type='SyncBN'),
         act_cfg=dict(type='SiLU', inplace=True)),
     bbox_head=dict(
-        type='RTMDetSepBNHead',
+        type='RTMDetInsSepBNHead',
         num_classes=num_classes,
         in_channels=256,
         stacked_convs=2,
+        share_conv=True,
+        pred_kernel_size=1,
         feat_channels=256,
+        act_cfg=dict(type='SiLU', inplace=True),
+        norm_cfg=dict(type='SyncBN', requires_grad=True),
         anchor_generator=dict(
             type='MlvlPointGenerator', offset=0, strides=[8, 16, 32]),
         bbox_coder=dict(type='DistancePointBBoxCoder'),
@@ -69,28 +73,25 @@ model = dict(
             beta=2.0,
             loss_weight=1.0),
         loss_bbox=dict(type='GIoULoss', loss_weight=2.0),
-        with_objectness=False,
-        exp_on_reg=True,
-        share_conv=True,
-        pred_kernel_size=1,
-        norm_cfg=dict(type='SyncBN'),
-        act_cfg=dict(type='SiLU', inplace=True)),
+        loss_mask=dict(
+            type='DiceLoss', loss_weight=2.0, eps=5e-6, reduction='mean')),
     train_cfg=dict(
         assigner=dict(type='DynamicSoftLabelAssigner', topk=13),
         allowed_border=-1,
         pos_weight=-1,
         debug=False),
     test_cfg=dict(
-        nms_pre=30000,
+        nms_pre=1000,
         min_bbox_size=0,
-        score_thr=0.001,
-        nms=dict(type='nms', iou_threshold=0.65),
-        max_per_img=300),
+        score_thr=0.05,
+        nms=dict(type='nms', iou_threshold=0.6),
+        max_per_img=100,
+        mask_thr_binary=0.5),
 )
 
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=backend_args),
-    dict(type='LoadAnnotations', with_bbox=True),
+    dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
     dict(type='Resize', scale=img_scale, keep_ratio=True),
     dict(type='RandomFlip', prob=0.5),
     # dict(type='CachedMosaic', img_scale=img_scale, pad_val=114.0),
@@ -114,7 +115,7 @@ train_pipeline = [
 
 train_pipeline_stage2 = [
     dict(type='LoadImageFromFile', backend_args=backend_args),
-    dict(type='LoadAnnotations', with_bbox=True),
+    dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
     # dict(
     #     type='RandomResize',
     #     scale=img_scale,
@@ -133,7 +134,7 @@ test_pipeline = [
     dict(type='LoadImageFromFile', backend_args=backend_args),
     dict(type='Resize', scale=img_scale, keep_ratio=True),
     dict(type='Pad', size=img_scale, pad_val=dict(img=(114, 114, 114))),
-    dict(type='LoadAnnotations', with_bbox=True),
+    dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
     dict(
         type='PackDetInputs',
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
@@ -238,4 +239,4 @@ custom_hooks = [
     dict(type='ModelCheckpointingHook', interval=1, metrics_file_name=metrics_file_name, chkp_dir=chkp_dir, chkp_name=chkp_name, tgt_metric='coco/bbox_mAP', should_record_epoch=True)
 ]
 
-load_from = 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet_l_8xb32-300e_coco/rtmdet_l_8xb32-300e_coco_20220719_112030-5a0be7c4.pth'
+load_from = 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet-ins_l_8xb32-300e_coco/rtmdet-ins_l_8xb32-300e_coco_20221124_103237-78d1d652.pth'
