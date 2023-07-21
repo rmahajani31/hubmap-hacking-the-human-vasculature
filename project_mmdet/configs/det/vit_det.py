@@ -120,6 +120,7 @@ train_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=True),
     dataset=dict(
         type=dataset_type,
+        metainfo=dict(classes=classes),
         data_root=data_root,
         ann_file=train_ann_file,
         data_prefix=dict(img=train_data_prefix),
@@ -134,6 +135,7 @@ val_dataloader = dict(
     sampler=dict(type='DefaultSampler', shuffle=False),
     dataset=dict(
         type=dataset_type,
+        metainfo=dict(classes=classes),
         data_root=data_root,
         ann_file=val_ann_file,
         data_prefix=dict(img=val_data_prefix),
