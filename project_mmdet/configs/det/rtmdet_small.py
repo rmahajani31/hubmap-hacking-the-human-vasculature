@@ -25,9 +25,10 @@ val_data_prefix = 'validation_images/'  # Prefix of val image path
 classes = ('blood_vessel',)
 
 num_classes = len(classes)  # Number of classes for classification
-img_scale = (512, 512)
+img_scale = (1024, 1024)
 
 backend_args = None
+checkpoint = 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/cspnext_rsb_pretrain/cspnext-s_imagenet_600e.pth'  # noqa
 
 model = dict(
     type='RTMDet',
@@ -41,29 +42,27 @@ model = dict(
         type='CSPNeXt',
         arch='P5',
         expand_ratio=0.5,
-        deepen_factor=1,
-        widen_factor=1,
+        deepen_factor=0.33,
+        widen_factor=0.5,
         channel_attention=True,
         norm_cfg=dict(type='SyncBN'),
-        act_cfg=dict(type='SiLU', inplace=True)),
+        act_cfg=dict(type='SiLU', inplace=True),
+        init_cfg=dict(
+            type='Pretrained', prefix='backbone.', checkpoint=checkpoint)),
     neck=dict(
         type='CSPNeXtPAFPN',
-        in_channels=[256, 512, 1024],
-        out_channels=256,
-        num_csp_blocks=3,
+        in_channels=[128, 256, 512],
+        out_channels=128,
+        num_csp_blocks=1,
         expand_ratio=0.5,
         norm_cfg=dict(type='SyncBN'),
         act_cfg=dict(type='SiLU', inplace=True)),
     bbox_head=dict(
-        type='RTMDetInsSepBNHead',
+        type='RTMDetSepBNHead',
         num_classes=num_classes,
-        in_channels=256,
+        in_channels=128,
         stacked_convs=2,
-        share_conv=True,
-        pred_kernel_size=1,
-        feat_channels=256,
-        act_cfg=dict(type='SiLU', inplace=True),
-        norm_cfg=dict(type='SyncBN', requires_grad=True),
+        feat_channels=128,
         anchor_generator=dict(
             type='MlvlPointGenerator', offset=0, strides=[8, 16, 32]),
         bbox_coder=dict(type='DistancePointBBoxCoder'),
@@ -73,58 +72,36 @@ model = dict(
             beta=2.0,
             loss_weight=1.0),
         loss_bbox=dict(type='GIoULoss', loss_weight=2.0),
-        loss_mask=dict(
-            type='DiceLoss', loss_weight=2.0, eps=5e-6, reduction='mean')),
+        with_objectness=False,
+        exp_on_reg=False,
+        share_conv=True,
+        pred_kernel_size=1,
+        norm_cfg=dict(type='SyncBN'),
+        act_cfg=dict(type='SiLU', inplace=True)),
     train_cfg=dict(
         assigner=dict(type='DynamicSoftLabelAssigner', topk=13),
         allowed_border=-1,
         pos_weight=-1,
         debug=False),
     test_cfg=dict(
-        nms_pre=1000,
+        nms_pre=30000,
         min_bbox_size=0,
-        score_thr=0.05,
-        nms=dict(type='nms', iou_threshold=0.6),
-        max_per_img=100,
-        mask_thr_binary=0.5),
+        score_thr=0.001,
+        nms=dict(type='nms', iou_threshold=0.65),
+        max_per_img=300),
 )
 
 train_pipeline = [
     dict(type='LoadImageFromFile', backend_args=backend_args),
-    dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
+    dict(type='LoadAnnotations', with_bbox=True),
     dict(type='Resize', scale=img_scale, keep_ratio=True),
     dict(type='RandomFlip', prob=0.5),
-    # dict(type='CachedMosaic', img_scale=img_scale, pad_val=114.0),
-    # dict(
-    #     type='RandomResize',
-    #     scale=(img_scale[0]*2, img_scale[1]*2),
-    #     ratio_range=(0.1, 2.0),
-    #     keep_ratio=True),
-    # dict(type='RandomCrop', crop_size=img_scale),
-    # dict(type='YOLOXHSVRandomAug'),
-    # dict(type='RandomFlip', prob=0.5),
-    # dict(type='Pad', size=img_scale, pad_val=dict(img=(114, 114, 114))),
-    # dict(
-    #     type='CachedMixUp',
-    #     img_scale=img_scale,
-    #     ratio_range=(1.0, 1.0),
-    #     max_cached_images=20,
-    #     pad_val=(114, 114, 114)),
     dict(type='PackDetInputs')
 ]
 
 train_pipeline_stage2 = [
     dict(type='LoadImageFromFile', backend_args=backend_args),
-    dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
-    # dict(
-    #     type='RandomResize',
-    #     scale=img_scale,
-    #     ratio_range=(0.1, 2.0),
-    #     keep_ratio=True),
-    # dict(type='RandomCrop', crop_size=img_scale),
-    # dict(type='YOLOXHSVRandomAug'),
-    # dict(type='RandomFlip', prob=0.5),
-    # dict(type='Pad', size=img_scale, pad_val=dict(img=(114, 114, 114))),
+    dict(type='LoadAnnotations', with_bbox=True),
     dict(type='Resize', scale=img_scale, keep_ratio=True),
     dict(type='RandomFlip', prob=0.5),
     dict(type='PackDetInputs')
@@ -133,8 +110,7 @@ train_pipeline_stage2 = [
 test_pipeline = [
     dict(type='LoadImageFromFile', backend_args=backend_args),
     dict(type='Resize', scale=img_scale, keep_ratio=True),
-    dict(type='Pad', size=img_scale, pad_val=dict(img=(114, 114, 114))),
-    dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
+    dict(type='LoadAnnotations', with_bbox=True),
     dict(
         type='PackDetInputs',
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
@@ -234,9 +210,9 @@ custom_hooks = [
         priority=49),
     dict(
         type='PipelineSwitchHook',
-        switch_epoch=max_epochs - stage2_num_epochs,
+        switch_epoch=280,
         switch_pipeline=train_pipeline_stage2),
     dict(type='ModelCheckpointingHook', interval=1, metrics_file_name=metrics_file_name, chkp_dir=chkp_dir, chkp_name=chkp_name, tgt_metric='coco/bbox_mAP', should_record_epoch=True)
 ]
 
-load_from = 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet-ins_l_8xb32-300e_coco/rtmdet-ins_l_8xb32-300e_coco_20221124_103237-78d1d652.pth'
+load_from = 'https://download.openmmlab.com/mmdetection/v3.0/rtmdet/rtmdet_s_8xb32-300e_coco/rtmdet_s_8xb32-300e_coco_20220905_161602-387a891e.pth'
