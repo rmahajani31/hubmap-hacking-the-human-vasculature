@@ -286,11 +286,16 @@ val_dataloader = dict(
 
 test_dataloader = val_dataloader
 
+# val_evaluator = dict(
+#     type='mmdet.CocoMetric',
+#     proposal_nums=(1000, 1, 10),
+#     ann_file=data_root + val_ann_file,
+#     metric='bbox')
 val_evaluator = dict(
-    type='mmdet.CocoMetric',
+    type='HubMapDetCocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric='bbox')
+    metric='bbox', score_thresh=0.001, save_preds=True, save_gt=True, save_suffix='cascade_mask_rcnn')
 test_evaluator = val_evaluator
 
 load_from = 'https://download.openmmlab.com/mmdetection/v2.0/cascade_rcnn/cascade_mask_rcnn_x101_64x4d_fpn_20e_coco/cascade_mask_rcnn_x101_64x4d_fpn_20e_coco_20200512_161033-bdb5126a.pth'

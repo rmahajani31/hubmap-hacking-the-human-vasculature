@@ -25,7 +25,7 @@ classes = ('blood_vessel',)
 
 num_classes = len(classes)  # Number of classes for classification
 # Batch size of a single GPU during training
-train_batch_size_per_gpu = 16
+train_batch_size_per_gpu = 4
 # Worker to pre-fetch data for each single GPU during training
 train_num_workers = 4
 # persistent_workers must be False if num_workers is 0
@@ -49,7 +49,7 @@ model_test_cfg = dict(
 
 # ========================Possible modified parameters========================
 # -----data related-----
-img_scale = (512, 512)  # width, height
+img_scale = (1024, 1024)  # width, height
 # Dataset type, this will be used to define the dataset
 dataset_type = 'YOLOv5CocoDataset'
 # Batch size of a single GPU during validation
@@ -332,11 +332,16 @@ custom_hooks = [
     dict(type='ModelCheckpointingHook', interval=1, metrics_file_name=metrics_file_name, chkp_dir=chkp_dir, chkp_name=chkp_name, tgt_metric='coco/bbox_mAP', should_record_epoch=True)
 ]
 
+# val_evaluator = dict(
+#     type='HubMapDetCocoMetric',
+#     proposal_nums=(1000, 1, 10),
+#     ann_file=data_root + val_ann_file,
+#     metric='bbox', score_thresh=0.001, save_preds=False)
 val_evaluator = dict(
     type='HubMapDetCocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric='bbox', score_thresh=0.001, save_preds=False)
+    metric='bbox', score_thresh=0.001, save_preds=True, save_gt=True, save_suffix='yolo')
 test_evaluator = val_evaluator
 
 train_cfg = dict(
