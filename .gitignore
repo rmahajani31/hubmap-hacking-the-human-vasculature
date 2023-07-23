@@ -4,6 +4,7 @@
 *.json
 *.png
 *.jpg
+*.bin
 *.zip
 *.pem
 *.tar.gz

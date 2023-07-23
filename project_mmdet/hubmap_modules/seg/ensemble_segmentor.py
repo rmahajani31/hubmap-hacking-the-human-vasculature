@@ -2,17 +2,47 @@ from mmseg.models.segmentors import EncoderDecoder, BaseSegmentor
 from mmseg.models.utils import resize
 from mmseg.models.builder import build_segmentor, SEGMENTORS
 from mmdet.models.roi_heads.mask_heads.fcn_mask_head import _do_paste_mask
+
+from mmengine.config import Config, ConfigDict, DictAction
  
 import torch
 from mmdet.models.roi_heads.mask_heads.fcn_mask_head import _do_paste_mask
 from mmengine.structures import PixelData
-
+import torch.nn as nn
 from mmseg.utils import (ConfigType, OptConfigType, OptMultiConfig,
                          OptSampleList, SampleList, add_prefix)
 from typing import List, Optional
 
+from mmseg.apis import init_model
+
 @SEGMENTORS.register_module()
-class CustomEncoderDecoder(EncoderDecoder):
+class EnsembleSegmentor(BaseSegmentor):
+    def __init__(
+        self,
+        configs,
+        checkpoints,
+        data_preprocessor,
+        weights,
+        train_cfg=None,
+        test_cfg=None,
+        **kwargs
+    ):
+        super(EnsembleSegmentor, self).__init__(data_preprocessor=data_preprocessor)
+        self.models = nn.ModuleList()
+        for config, checkpoint in zip(configs, checkpoints):
+            model = init_model(config, checkpoint)
+            self.models.append(model)
+        self.weights = weights
+
+        self.test_cfg = test_cfg
+
+    def ensemble_inference(self, inputs, batch_img_metas):
+        seg_logits = []
+        for model, weight in zip(self.models, self.weights):
+            seg_logit = model.inference(inputs, batch_img_metas)
+            seg_logits.append(seg_logit * weight)
+        seg_logit = sum(seg_logits) / sum(self.weights)
+        return seg_logit
 
     def predict(self,
                 inputs,
@@ -48,7 +78,7 @@ class CustomEncoderDecoder(EncoderDecoder):
             ] * inputs.shape[0]
         
 
-        seg_logits = self.inference(inputs, batch_img_metas)
+        seg_logits = self.ensemble_inference(inputs, batch_img_metas)
 
         new_data_samples = self.postprocess_result(seg_logits, data_samples)
         # print('==============PREDICT===============')
@@ -140,9 +170,9 @@ class CustomEncoderDecoder(EncoderDecoder):
                     bbox = bbox.unsqueeze(dim=0)
                     ori_shape = data_samples[i].metainfo['ori_shape']
                     i_seg_prob, _ = _do_paste_mask(i_seg_prob, bbox, ori_shape[0], ori_shape[1], False)
-                    final_seg_pred = i_seg_prob > self.decode_head.threshold
+                    final_seg_pred = i_seg_prob > 0.3
                     i_seg_pred = (i_seg_logits >
-                                self.decode_head.threshold).to(i_seg_logits)
+                                0.3).to(i_seg_logits)
                 # print(f'i_seg_logits shape: {i_seg_logits.shape}')
                 data_samples[i].set_data({
                     'seg_logits':
@@ -154,40 +184,26 @@ class CustomEncoderDecoder(EncoderDecoder):
                 })
 
             return data_samples
-    # def inference(self, inputs, batch_img_metas):
-    #     print('===============================')
-    #     print(f'Calling inference!!! {inputs.shape}')
-    #     print(batch_img_metas)
-    #     print('===============================')
-    #     """Inference with slide/whole style.
+    
 
-    #     Args:
-    #         inputs (Tensor): The input image of shape (N, 3, H, W).
-    #         batch_img_metas (List[dict]): List of image metainfo where each may
-    #             also contain: 'img_shape', 'scale_factor', 'flip', 'img_path',
-    #             'ori_shape', 'pad_shape', and 'padding_size'.
-    #             For details on the values of these keys see
-    #             `mmseg/datasets/pipelines/formatting.py:PackSegInputs`.
+    def loss(self, inputs, data_samples):
+        """Calculate losses from a batch of inputs and data samples."""
+        pass
 
-    #     Returns:
-    #         Tensor: The segmentation results, seg_logits from model of each
-    #             input image.
-    #     """
-    #     assert self.test_cfg.get('mode', 'whole') in ['slide', 'whole'], \
-    #         f'Only "slide" or "whole" test mode are supported, but got ' \
-    #         f'{self.test_cfg["mode"]}.'
-    #     ori_shape = batch_img_metas[0]['ori_shape']
-    #     assert all(_['ori_shape'] == ori_shape for _ in batch_img_metas)
-    #     if self.test_cfg.mode == 'slide':
-    #         seg_logit = self.slide_inference(inputs, batch_img_metas)
-    #     else:
-    #         seg_logit = self.whole_inference(inputs, batch_img_metas)
+    def _forward(self,
+                 inputs,
+                 data_samples):
+        """Network forward process.
+        Usually includes backbone, neck and head forward without any post-
+        processing.
+        """
+        pass
 
-    #     print(f'Seg Logit shape: {seg_logit.shape}=======')
-    #     seg_prob = torch.softmax(seg_logit, dim=1)[:,1]
-    #     seg_prob = seg_prob.unsqueeze(dim=0)
-    #     bbox = torch.tensor(batch_img_metas[0]['bbox'], device='cuda')
-    #     bbox = bbox.unsqueeze(dim=0)
-    #     seg_prob, _ = _do_paste_mask(seg_prob, bbox, ori_shape[0], ori_shape[1], False)
-    #     print(seg_prob.shape, bbox.shape, seg_prob.squeeze().max(), seg_prob.squeeze().min(), seg_logit.squeeze()[0].max(), seg_logit.squeeze()[0].min())
-    #     return seg_prob
+    def encode_decode(self, inputs, batch_data_samples):
+        """Placeholder for encode images with backbone and decode into a
+        semantic segmentation map of the same size as input."""
+        pass
+
+    def extract_feat(self, inputs):
+        """Placeholder for extract features from images."""
+        pass

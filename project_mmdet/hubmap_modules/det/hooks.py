@@ -5,7 +5,6 @@ import json
 from mmengine.registry import HOOKS
 from mmengine.hooks import Hook
 
-
 @HOOKS.register_module()
 class ModelCheckpointingHook(Hook):
     def __init__(self, interval, metrics_file_name, chkp_dir, chkp_name, tgt_metric, should_record_epoch):
