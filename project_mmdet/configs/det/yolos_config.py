@@ -1,17 +1,17 @@
-_base_ = ['/home/ec2-user/mmyolo/configs/_base_/default_runtime.py', '/home/ec2-user/mmyolo/configs/_base_/det_p5_tta.py']
+_base_ = ['/home/ec2-user/hubmap-hacking-the-human-vasculature/mmyolo/configs/_base_/default_runtime.py', '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmyolo/configs/_base_/det_p5_tta.py']
  
 # ========================Frequently modified parameters======================
 # -----data related-----
 dataset_type = 'YOLOv5CocoDataset'
 generate_all_datset_annots = True
 generate_pseudo_labels = True
-pseudo_thres='05'
+pseudo_thresh=0.3
 base_data_dir_name_1 = 'dataset1_files' if not generate_all_datset_annots else 'all_dataset_files'
 base_data_dir_name_2 = 'all_dataset1' if not generate_all_datset_annots else 'all_dataset'
 pseudo_label_name = '' if not generate_pseudo_labels else '_pseudo_labels'
 data_root = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/{base_data_dir_name_1}/{base_data_dir_name_2}{pseudo_label_name}_mmdet_fold_0/'
 suffix_end = 'only_dataset1' if not generate_all_datset_annots else 'dataset1_and_2'
-suffix_end = suffix_end if not generate_pseudo_labels else 'pseudo_label'+pseudo_thres
+suffix_end = suffix_end if not generate_pseudo_labels else f'pseudo_label_{pseudo_thresh}'
 suffix = f'fold_0_run_yolov8_{suffix_end}'
 
 chkp_dir = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/project_mmdet/models_{suffix}'
@@ -345,7 +345,7 @@ val_evaluator = dict(
     type='HubMapDetCocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric='bbox', score_thresh=0.001, save_preds=True, save_gt=True, save_suffix='yolo_001')
+    metric='bbox', score_thresh=pseudo_thresh, save_preds=True, save_suffix=f'yolo_{pseudo_thresh}')
 test_evaluator = val_evaluator
 
 train_cfg = dict(
