@@ -14,6 +14,7 @@ from mmseg.utils import (ConfigType, OptConfigType, OptMultiConfig,
 from typing import List, Optional
 
 from mmseg.apis import init_model
+import os
 
 @SEGMENTORS.register_module()
 class EnsembleSegmentor(BaseSegmentor):
@@ -30,7 +31,7 @@ class EnsembleSegmentor(BaseSegmentor):
         super(EnsembleSegmentor, self).__init__(data_preprocessor=data_preprocessor)
         self.models = nn.ModuleList()
         for config, checkpoint in zip(configs, checkpoints):
-            model = init_model(config, checkpoint)
+            model = init_model(os.path.abspath(config), checkpoint)
             self.models.append(model)
         self.weights = weights
 

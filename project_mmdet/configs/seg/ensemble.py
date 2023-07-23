@@ -1,10 +1,10 @@
 _base_ = [
-    '/home/ec2-user/mmsegmentation/configs/_base_/default_runtime.py', '/home/ec2-user/mmsegmentation/configs/_base_/schedules/schedule_40k.py'
+    '../../seg_models/default_runtime.py', '../../seg_models/schedule_40k.py'
 ]
 
-configs=['/home/ec2-user/hubmap-hacking-the-human-vasculature/project_mmdet/configs/seg/segformer.py', '/home/ec2-user/hubmap-hacking-the-human-vasculature/project_mmdet/configs/seg/upernet_vit.py']
-checkpoints=['/home/ec2-user/hubmap-hacking-the-human-vasculature/project_mmdet/seg_models/model_fold_0_run_segformer_b4_dataset1_and_2_0.601.pth','/home/ec2-user/hubmap-hacking-the-human-vasculature/project_mmdet/seg_models/model_fold_0_run_upernet_vit_dataset1_and_2_0.63.pth']
-weights=[0.5,0.5]
+configs=['seg_models/segformer.py', 'seg_models/upernet_vit.py', 'seg_models/swin-tiny-patch4-window7-in1k-pre_upernet_8xb2-160k_ade20k-512x512_old.py']
+checkpoints=['seg_models/model_fold_0_run_segformer_b4_dataset1_and_2_0.601.pth','seg_models/model_fold_0_run_upernet_vit_dataset1_and_2_0.63.pth', 'seg_models/model_fold_0_run_upernet_swin_dataset1_and_2_0.347.pth']
+weights=[0.5,0.5,0.5]
 
 # model settings
 norm_cfg = dict(type='SyncBN', requires_grad=True)

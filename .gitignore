@@ -34,3 +34,4 @@ models/
 full_training_data/
 map_input_data/
 dataset1_files/
+seg_models/

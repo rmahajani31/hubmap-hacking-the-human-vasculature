@@ -1,5 +1,5 @@
 _base_ = [
-    '/home/ec2-user/mmsegmentation/configs/_base_/default_runtime.py', '/home/ec2-user/mmsegmentation/configs/_base_/schedules/schedule_40k.py'
+    '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/default_runtime.py', '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmsegmentation/configs/_base_/schedules/schedule_40k.py'
 ]
 
 # model settings
