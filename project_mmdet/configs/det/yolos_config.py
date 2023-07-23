@@ -5,7 +5,7 @@ _base_ = ['/home/ec2-user/hubmap-hacking-the-human-vasculature/mmyolo/configs/_b
 dataset_type = 'YOLOv5CocoDataset'
 generate_all_datset_annots = True
 generate_pseudo_labels = True
-pseudo_thresh=0.3
+pseudo_thresh=0.05
 base_data_dir_name_1 = 'dataset1_files' if not generate_all_datset_annots else 'all_dataset_files'
 base_data_dir_name_2 = 'all_dataset1' if not generate_all_datset_annots else 'all_dataset'
 pseudo_label_name = '' if not generate_pseudo_labels else '_pseudo_labels'
@@ -336,16 +336,16 @@ custom_hooks = [
     dict(type='ModelCheckpointingHook', interval=1, metrics_file_name=metrics_file_name, chkp_dir=chkp_dir, chkp_name=chkp_name, tgt_metric='coco/bbox_mAP', should_record_epoch=True)
 ]
 
-# val_evaluator = dict(
-#     type='HubMapDetCocoMetric',
-#     proposal_nums=(1000, 1, 10),
-#     ann_file=data_root + val_ann_file,
-#     metric='bbox', score_thresh=0.001, save_preds=False)
 val_evaluator = dict(
     type='HubMapDetCocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric='bbox', score_thresh=pseudo_thresh, save_preds=True, save_suffix=f'yolo_{pseudo_thresh}')
+    metric='bbox', score_thresh=0.001, save_preds=False)
+# val_evaluator = dict(
+#     type='HubMapDetCocoMetric',
+#     proposal_nums=(1000, 1, 10),
+#     ann_file=data_root + val_ann_file,
+#     metric='bbox', score_thresh=pseudo_thresh, save_preds=True, save_suffix=f'yolo_{pseudo_thresh}')
 test_evaluator = val_evaluator
 
 train_cfg = dict(
