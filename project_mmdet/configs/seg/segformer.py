@@ -124,10 +124,8 @@ train_dataloader = dict(
 #     persistent_workers=True,
 #     sampler=dict(type='DefaultSampler', shuffle=True),
 #     dataset=dict(
-#         type=dataset_type,
-#         data_root=data_root,
-#         ann_file=val_ann_file,
-#         img_dir=val_data_prefix,
+#         type='HubMapSegTestDataset',
+#         preds_file='val_preds.pkl',
 #         pipeline=test_pipeline))
 
 val_dataloader = dict(
