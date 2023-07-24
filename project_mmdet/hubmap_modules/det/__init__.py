@@ -5,3 +5,4 @@ from .ViTDet import *
 from .utils import *
 from .dataset import *
 from .transforms import *
+from .collate_func import *

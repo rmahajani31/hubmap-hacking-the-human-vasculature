@@ -275,7 +275,7 @@ train_dataloader = dict(
     persistent_workers=persistent_workers,
     pin_memory=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
-    collate_fn=dict(type='yolov5_collate'),
+    collate_fn=dict(type='yolov5_collate_pseudo'),
     dataset=dict(
         type=dataset_type,
         metainfo=dict(classes=classes),

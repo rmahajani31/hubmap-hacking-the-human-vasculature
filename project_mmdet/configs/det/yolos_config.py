@@ -4,7 +4,7 @@ _base_ = ['/home/ec2-user/hubmap-hacking-the-human-vasculature/mmyolo/configs/_b
 # -----data related-----
 dataset_type = 'YOLOv5CocoDataset'
 generate_all_datset_annots = True
-generate_pseudo_labels = True
+generate_pseudo_labels = False
 pseudo_thresh=0.05
 base_data_dir_name_1 = 'dataset1_files' if not generate_all_datset_annots else 'all_dataset_files'
 base_data_dir_name_2 = 'all_dataset1' if not generate_all_datset_annots else 'all_dataset'
