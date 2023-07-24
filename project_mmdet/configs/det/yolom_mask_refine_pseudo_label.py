@@ -1,5 +1,5 @@
-_base_ = './yolos_mask_refine.py'
- 
+_base_ = './yolos_mask_refine_pseudo_label.py'
+
 # This config use refining bbox and `YOLOv5CopyPaste`.
 # Refining bbox means refining bbox by mask while loading annotations and
 # transforming after `YOLOv5RandomAffine`

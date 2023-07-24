@@ -1,16 +1,18 @@
-_base_ = ['/home/ec2-user/mmyolo/configs/_base_/default_runtime.py', '/home/ec2-user/mmyolo/configs/_base_/det_p5_tta.py']
+_base_ = ['/home/ec2-user/hubmap-hacking-the-human-vasculature/mmyolo/configs/_base_/default_runtime.py', '/home/ec2-user/hubmap-hacking-the-human-vasculature/mmyolo/configs/_base_/det_p5_tta.py']
  
 # ========================Frequently modified parameters======================
 # -----data related-----
-dataset_type = 'YOLOv5CocoDataset'
+dataset_type = 'HubMapDetPseudoLabelCocoTrainDataset'
+# dataset_type = 'YOLOv5CocoDataset'
 generate_all_datset_annots = True
 generate_pseudo_labels = True
+pseudo_thresh=0.05
 base_data_dir_name_1 = 'dataset1_files' if not generate_all_datset_annots else 'all_dataset_files'
 base_data_dir_name_2 = 'all_dataset1' if not generate_all_datset_annots else 'all_dataset'
 pseudo_label_name = '' if not generate_pseudo_labels else '_pseudo_labels'
 data_root = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/{base_data_dir_name_1}/{base_data_dir_name_2}{pseudo_label_name}_mmdet_fold_0/'
 suffix_end = 'only_dataset1' if not generate_all_datset_annots else 'dataset1_and_2'
-suffix_end = suffix_end if not generate_pseudo_labels else 'pseudo_label'
+suffix_end = suffix_end if not generate_pseudo_labels else f'pseudo_label_{pseudo_thresh}'
 suffix = f'fold_0_run_yolov8_{suffix_end}'
 
 chkp_dir = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/project_mmdet/models_{suffix}'
@@ -52,9 +54,8 @@ model_test_cfg = dict(
 
 # ========================Possible modified parameters========================
 # -----data related-----
-img_scale = (1024, 1024)  # width, height
+img_scale = (512, 512)  # width, height
 # Dataset type, this will be used to define the dataset
-dataset_type = 'YOLOv5CocoDataset'
 # Batch size of a single GPU during validation
 val_batch_size_per_gpu = 1
 # Worker to pre-fetch data for each single GPU during validation
@@ -101,7 +102,7 @@ loss_dfl_weight = 1.5 / 4
 lr_factor = 0.01  # Learning rate scaling factor
 weight_decay = 0.0005
 # Save model checkpoint and validation intervals in stage 1
-save_epoch_intervals = 5
+save_epoch_intervals = 1
 # validation intervals in stage 2
 val_interval_stage2 = 1
 # The maximum checkpoints to keep.
@@ -186,7 +187,7 @@ albu_train_transforms = [
 
 pre_transform = [
     dict(type='LoadImageFromFile', file_client_args=_base_.file_client_args),
-    dict(type='LoadAnnotations', with_bbox=True)
+    dict(type='LoadAnnotationsHubMap', with_bbox=True)
 ]
 
 last_transform = [
@@ -204,46 +205,69 @@ last_transform = [
     dict(type='YOLOv5HSVRandomAug'),
     dict(type='mmdet.RandomFlip', prob=0.5),
     dict(
-        type='mmdet.PackDetInputs',
+        type='PackDetInputsHubMap',
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape', 'flip',
                    'flip_direction'))
 ]
 
+# train_pipeline = [
+#     *pre_transform,
+#     dict(
+#         type='Mosaic',
+#         img_scale=img_scale,
+#         pad_val=114.0,
+#         pre_transform=pre_transform),
+#     dict(
+#         type='YOLOv5RandomAffine',
+#         max_rotate_degree=0.0,
+#         max_shear_degree=0.0,
+#         scaling_ratio_range=(1 - affine_scale, 1 + affine_scale),
+#         max_aspect_ratio=max_aspect_ratio,
+#         # img_scale is (width, height)
+#         border=(-img_scale[0] // 2, -img_scale[1] // 2),
+#         border_val=(114, 114, 114)),
+#     *last_transform
+# ]
+
 train_pipeline = [
     *pre_transform,
-    dict(
-        type='Mosaic',
-        img_scale=img_scale,
-        pad_val=114.0,
-        pre_transform=pre_transform),
-    dict(
-        type='YOLOv5RandomAffine',
-        max_rotate_degree=0.0,
-        max_shear_degree=0.0,
-        scaling_ratio_range=(1 - affine_scale, 1 + affine_scale),
-        max_aspect_ratio=max_aspect_ratio,
-        # img_scale is (width, height)
-        border=(-img_scale[0] // 2, -img_scale[1] // 2),
-        border_val=(114, 114, 114)),
-    *last_transform
+    dict(type='YOLOv5KeepRatioResize', scale=img_scale),
+    # dict(type='YOLOv5RandomAffine',
+    #     max_rotate_degree=0.0,
+    #     max_shear_degree=0.0,
+    #     scaling_ratio_range=(1 - affine_scale, 1 + affine_scale),
+    #     max_aspect_ratio=max_aspect_ratio,
+    #     # img_scale is (width, height)
+    #     border=(-img_scale[0] // 2, -img_scale[1] // 2),
+    #     border_val=(114, 114, 114)),
+        # dict(
+        # type='PackDetInputsHubMap',
+        # meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape'))
+        *last_transform
 ]
 
-train_pipeline_stage2 = [
-    *pre_transform,
-    dict(type='YOLOv5KeepRatioResize', scale=img_scale),
-    dict(
-        type='LetterResize',
-        scale=img_scale,
-        allow_scale_up=True,
-        pad_val=dict(img=114.0)),
-    dict(
-        type='YOLOv5RandomAffine',
-        max_rotate_degree=0.0,
-        max_shear_degree=0.0,
-        scaling_ratio_range=(1 - affine_scale, 1 + affine_scale),
-        max_aspect_ratio=max_aspect_ratio,
-        border_val=(114, 114, 114)), *last_transform
-]
+# dict(
+#         type='PackDetInputsHubMap',
+#         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape'))
+
+train_pipeline_stage2 = train_pipeline
+
+# train_dataloader = dict(
+#     batch_size=train_batch_size_per_gpu,
+#     num_workers=train_num_workers,
+#     persistent_workers=persistent_workers,
+#     pin_memory=True,
+#     sampler=dict(type='DefaultSampler', shuffle=True),
+#     collate_fn=dict(type='yolov5_collate'),
+#     dataset=dict(
+#         type=dataset_type,
+#         # metainfo=dict(classes=classes),
+#         data_root=data_root,
+#         ann_file=train_ann_file,
+#         img_dir=train_data_prefix,
+#         # data_prefix=dict(img=train_data_prefix),
+#         # filter_cfg=dict(filter_empty_gt=False, min_size=32),
+#         pipeline=train_pipeline))
 
 train_dataloader = dict(
     batch_size=train_batch_size_per_gpu,
@@ -275,6 +299,25 @@ test_pipeline = [
         meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
                    'scale_factor', 'pad_param'))
 ]
+
+# val_dataloader = dict(
+#     batch_size=val_batch_size_per_gpu,
+#     num_workers=val_num_workers,
+#     persistent_workers=persistent_workers,
+#     pin_memory=True,
+#     drop_last=False,
+#     sampler=dict(type='DefaultSampler', shuffle=False),
+#     dataset=dict(
+#         type=dataset_type,
+#         # metainfo=dict(classes=classes),
+#         data_root=data_root,
+#         test_mode=True,
+#         img_dir=val_data_prefix,
+#         # data_prefix=dict(img=val_data_prefix),
+#         ann_file=val_ann_file,
+#         pipeline=test_pipeline,
+#         # batch_shapes_cfg=batch_shapes_cfg
+#         ))
 
 val_dataloader = dict(
     batch_size=val_batch_size_per_gpu,
@@ -335,16 +378,16 @@ custom_hooks = [
     dict(type='ModelCheckpointingHook', interval=1, metrics_file_name=metrics_file_name, chkp_dir=chkp_dir, chkp_name=chkp_name, tgt_metric='coco/bbox_mAP', should_record_epoch=True)
 ]
 
-# val_evaluator = dict(
-#     type='HubMapDetCocoMetric',
-#     proposal_nums=(1000, 1, 10),
-#     ann_file=data_root + val_ann_file,
-#     metric='bbox', score_thresh=0.001, save_preds=False)
 val_evaluator = dict(
     type='HubMapDetCocoMetric',
     proposal_nums=(1000, 1, 10),
     ann_file=data_root + val_ann_file,
-    metric='bbox', score_thresh=0.01, save_preds=True, save_gt=True, save_suffix='yolo')
+    metric='bbox', score_thresh=0.001, save_preds=False)
+# val_evaluator = dict(
+#     type='HubMapDetCocoMetric',
+#     proposal_nums=(1000, 1, 10),
+#     ann_file=data_root + val_ann_file,
+#     metric='bbox', score_thresh=pseudo_thresh, save_preds=True, save_suffix=f'yolo_{pseudo_thresh}')
 test_evaluator = val_evaluator
 
 train_cfg = dict(
