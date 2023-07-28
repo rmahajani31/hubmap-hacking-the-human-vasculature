@@ -9,7 +9,7 @@ pseudo_thresh=0.3
 base_data_dir_name_1 = 'dataset1_files' if not generate_all_datset_annots else 'all_dataset_files'
 base_data_dir_name_2 = 'all_dataset1' if not generate_all_datset_annots else 'all_dataset'
 pseudo_label_name = '' if not generate_pseudo_labels else '_pseudo_labels'
-data_root = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/{base_data_dir_name_1}/{base_data_dir_name_2}{pseudo_label_name}_mmdet_fold_1/'
+data_root = f'/home/ec2-user/hubmap-hacking-the-human-vasculature/{base_data_dir_name_1}/{base_data_dir_name_2}{pseudo_label_name}_mmdet_fold_0/'
 suffix_end = 'only_dataset1' if not generate_all_datset_annots else 'dataset1_and_2'
 suffix_end = suffix_end if not generate_pseudo_labels else f'pseudo_label_{pseudo_thresh}'
 suffix = f'fold_0_run_yolov8_{suffix_end}'
@@ -29,7 +29,7 @@ classes = ('blood_vessel',)
 
 num_classes = len(classes)  # Number of classes for classification
 # Batch size of a single GPU during training
-train_batch_size_per_gpu = 4
+train_batch_size_per_gpu = 2
 # Worker to pre-fetch data for each single GPU during training
 train_num_workers = 4
 # persistent_workers must be False if num_workers is 0
@@ -53,7 +53,7 @@ model_test_cfg = dict(
 
 # ========================Possible modified parameters========================
 # -----data related-----
-img_scale = (1024, 1024)  # width, height
+img_scale = (1536, 1536)  # width, height
 # Dataset type, this will be used to define the dataset
 dataset_type = 'YOLOv5CocoDataset'
 # Batch size of a single GPU during validation
