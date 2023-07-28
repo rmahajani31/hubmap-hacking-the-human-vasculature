@@ -1,6 +1,0 @@
-path: ../../all_dataset_files
-train: yolo_dataset1_train_0/images
-val: yolo_dataset1_validation_0/images
-
-nc: 3
-names: ['blood vessel', 'glomerulus', 'unsure']
