@@ -1,10 +1,13 @@
 _base_ = [
-    '../_base_/datasets/coco_detection.py',
-    '../_base_/default_runtime.py'
-]
+    '/home/ec2-user/Co-DETR/configs/_base_/datasets/coco_detection.py',
+    '/home/ec2-user/Co-DETR/configs/_base_/default_runtime.py'
+] 
 # model settings
 num_dec_layer = 6
 lambda_2 = 2.0
+
+classes = ('blood_vessel',)
+num_classes = len(classes) 
 
 model = dict(
     type='CoDETR',
@@ -46,7 +49,7 @@ model = dict(
     query_head=dict(
         type='CoDINOHead',
         num_query=900,
-        num_classes=80,
+        num_classes=num_classes,
         num_feature_levels=5,
         in_channels=2048,
         sync_cls_avg_factor=True,
@@ -121,7 +124,7 @@ model = dict(
             in_channels=256,
             fc_out_channels=1024,
             roi_feat_size=7,
-            num_classes=80,
+            num_classes=num_classes,
             bbox_coder=dict(
                 type='DeltaXYWHBBoxCoder',
                 target_means=[0., 0., 0., 0.],
@@ -133,7 +136,7 @@ model = dict(
             loss_bbox=dict(type='GIoULoss', loss_weight=10.0*num_dec_layer*lambda_2)))],
     bbox_head=[dict(
         type='CoATSSHead',
-        num_classes=80,
+        num_classes=num_classes,
         in_channels=256,
         stacked_convs=1,
         feat_channels=256,
@@ -305,7 +308,7 @@ test_pipeline = [
 data = dict(
     samples_per_gpu=2,
     workers_per_gpu=2,
-    train=dict(filter_empty_gt=False, pipeline=train_pipeline),
+    train=dict(pipeline=train_pipeline),
     val=dict(pipeline=test_pipeline),
     test=dict(pipeline=test_pipeline))
 # optimizer
